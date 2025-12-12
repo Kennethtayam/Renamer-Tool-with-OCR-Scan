@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PDF Renamer</title>
+
+<!-- Libraries -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.9.179/build/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.3/dist/tesseract.min.js"></script>
+
+<style>
+    :root {
+        --upload-button-bg: #555;
+        --primary-color: #007bff;
+        --success-color: #4caf50;
+        --danger-color: #f44336;
+        --warning-color: #ff9800;
+        --light-bg: #f2f6ff;
+        --border-color: #ccc;
+        --text-color: #333;
+        --border-radius: 8px;
+        --transition: 0.2s ease;
+    }   
+    * {
+        box-sizing: border-box;
+    }
+
+    body{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            padding: 20px;
+            margin: 0;
+            background-color: #f5f5f5;
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+    h1 { text-align: center;
+                margin-bottom: 30px;
+                font-size: 40px;
+                color: var(--primary-color);
+                text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+        }
+    .horizontal-form {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+            background-color: white;
+            padding: 20px;
+            border-radius: var(--border-radius);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+    .form-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+    .form-group label {
+            font-size: 16px;
+            font-weight: 500;
+            min-width: 10px;
+        }
+    
+    .form-group input[type="text"] {
+            padding: 10px;
+            font-size: 16px;
+            border: 2px solid var(--border-color);
+            border-radius: 6px;
+            outline: none;
+            transition: border-color var(--transition), box-shadow var(--transition);
+            background-color: whitesmoke;
+        }
+    .form-group input[type="text"]:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(0,123,255,0.25);
+            outline: none;
+        }
+    .form-group input[type="text"]:disabled {
+            background-color: #f8f9fa;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }    
+    .toggle-label {
+                font-size: 14px;
+                color: #666;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                cursor: pointer;
+            }
+
+    .file-group {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+    .button {
+            padding: 12px 24px;
+            cursor: pointer;
+            border-radius: var(--border-radius);
+            font-weight: 600;
+            border: none;
+            transition: var(--transition);
+            font-size: 16px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+    .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+    .button:active {
+        transform: translateY(0);
+        }
+
+    .button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+    #selectAllBtn {
+            background: var(--success-color);
+            color: white;
+        }
+    #uploadFolderBtn {
+            background: var(--upload-button-bg);
+            color: white;
+        }
+
+    #deselectAllBtn {
+            background: var(--danger-color);
+            color: white;
+        }
+    #renameBtn {
+            background: var(--primary-color);
+            color: white;
+        }
+
+    .container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+    .file-list {
+            flex: 1;
+            min-width: 300px;
+            max-width: 500px;
+            border: 1px solid var(--border-color);
+            padding: 15px;
+            height: 80vh;
+            overflow-y: auto;
+            background-color: white;
+            border-radius: var(--border-radius);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+    .file-item {
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            background-color: var(--light-bg);
+            border-radius: var(--border-radius);
+            margin-bottom: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: var(--transition);
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+    .file-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background-color: transparent;
+            transition: var(--transition);
+        }
+    .file-item:hover {
+            background-color: #e8f0ff;
+            transform: translateX(4px);
+        }
+
+    .file-item.selected {
+            border: 2px solid var(--primary-color);
+            background-color: #e6f0ff;
+        }
+    .file-item.selected::before {
+            background-color: var(--primary-color);
+        }
+    .file-item .top-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+    .pdf-icon {
+            font-size: 20px;
+            margin-right: 10px;
+            color: var(--primary-color);
+        }
+
+    .file-item input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 2px solid var(--border-color);
+            border-radius: var(--border-radius);
+            outline: none;
+            transition: var(--transition);
+        }
+
+    .file-item input[type="text"]:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(0,123,255,0.25);
+        }
+
+    .file-item input[type="text"]:hover {
+            border-color: #999;
+        }
+
+    #pdfViewer {
+            flex: 2;
+            min-width: 300px;
+            width: 100%;
+            height: 80vh;
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius);
+            background-color: white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+    .button-wrapper {
+            text-align: center;
+            margin-top: 30px;
+        }
+    .modal {
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.6);
+            backdrop-filter: blur(5px);
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-content {
+            background-color: #fff;
+            margin: 200px auto;
+            padding: 25px;
+            border-radius: var(--border-radius);
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            animation: slideIn 0.10s ease;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .modal-header {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+
+        .modal-footer {
+            text-align: right;
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .modal input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            font-size: 16px;
+            border: 2px solid var(--border-color);
+            border-radius: var(--border-radius);
+            transition: var(--transition);
+        }
+
+        .modal input[type="text"]:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(0,123,255,0.25);
+            outline: none;
+        }
+
+        .remove-btn {
+            padding: 8px 12px;
+            margin-left: 10px;
+            background: var(--danger-color);
+            color: white;
+            border: none;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            font-size: 14px;
+            transition: var(--transition);
+        }
+
+        .remove-btn:hover {
+            background: #d32f2f;
+            transform: scale(1.05);
+        }
+    #loadingIndicator {
+            display: none;
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 15px 20px;
+            border-radius: var(--border-radius);
+            font-weight: bold;
+            z-index: 10000;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            animation: slideInRight 0.3s ease;
+        }
+
+        @keyframes slideInRight {
+            from { transform: translateX(100px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        #progressBarContainer {
+            width: 100%;
+            background-color: #555;
+            border-radius: var(--border-radius);
+            margin-top: 8px;
+            height: 12px;
+            overflow: hidden;
+        }
+
+        #progressBar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--success-color), #81c784);
+            border-radius: var(--border-radius);
+            transition: width 0.3s ease;
+        }
+
+        #ocrLoadingIndicator {
+            display: none;
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 15px 25px;
+            border-radius: var(--border-radius);
+            font-weight: bold;
+            z-index: 10000;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+
+        .error-file {
+            background-color: #ffebee !important;
+        }
+
+        .error-file .top-row span:last-child {
+            color: var(--warning-color);
+            font-weight: 500;
+        }
+
+        .file-item .fallback-indicator {
+            color: var(--warning-color);
+            font-size: 12px;
+            font-weight: normal;
+            margin-left: 8px;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            h2 {
+                font-size: 28px;
+                margin-bottom: 20px;
+            }
+
+            .horizontal-form {
+                flex-direction: column;
+                gap: 15px;
+                padding: 15px;
+            }
+
+            .form-group {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .file-group {
+                gap: 10px;
+            }
+
+            .button {
+                padding: 10px 16px;
+                font-size: 14px;
+            }
+
+            .container {
+                flex-direction: column;
+            }
+
+            .file-list {
+                max-width: 100%;
+                height: 50vh;
+            }
+
+            #pdfViewer {
+                height: 50vh;
+            }
+
+            .file-item {
+                padding: 12px;
+            }
+
+            .file-item input[type="text"] {
+                font-size: 14px;
+            }
+
+            .modal-content {
+                margin: 20px;
+                padding: 20px;
+            }
+
+            .modal-header {
+                font-size: 20px;
+            }
+
+            .remove-btn {
+                padding: 6px 10px;
+                font-size: 12px;
+            }
+        }
+
+        /* Accessibility */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        /* Icon styles */
+        .icon {
+            display: inline-block;
+            width: 1em;
+            height: 1em;
+            stroke-width: 0;
+            stroke: currentColor;
+            fill: currentColor;
+        }
+</style>
+</head>
+<body>
+
+<h1>PDF Renamer</h1>
+
+<div class="horizontal-form">
+  <div class="form-group">
+    <label> Date:</label>
+    <input type="text" id="date" placeholder="e.g., 2025.11.11">
+    <label class="toggle-label"><input type="checkbox" id="enableDate" checked> (toggle)</label>
+  </div>
+  <div class="form-group">
+    <label> File Name:</label>
+    <input type="text" id="fileNameExt" placeholder="e.g., DTR">
+    <label class="toggle-label"><input type="checkbox" id="enableFileNameExt" checked> (toggle)</label>
+  </div>
+  <div class="form-group">
+    <label> Attachment:</label>
+    <input type="text" id="attachment" placeholder="e.g., Attachment_1">
+    <label class="toggle-label"><input type="checkbox" id="enableAttachment" checked> (toggle)</label>
+  </div>
+</div>
+
+<div class="file-group">
+  <button class="button" id="uploadFolderBtn" aria-label="Upload PDF folder">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/>
+            </svg>
+            Upload PDF Folder
+        </button>
+  <button class="button" id="selectAllBtn" aria-label="Select all files">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/>
+            </svg>
+            Select All
+        </button>
+  <button class="button" id="deselectAllBtn" aria-label="Deselect all files">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z"/>
+            </svg>
+            Deselect All
+        </button>
+  <button class="button" id="renameBtn" aria-label="Rename and download PDFs">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+            </svg>
+            Rename & Download PDFs (ZIP)
+        </button>
+</div>
+
+<input type="file" id="pdfFiles" webkitdirectory multiple accept="application/pdf" style="display:none;">
+
+<div id="uploadConfirmModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">Confirm Folder Upload</div>
+    <div id="selectedFolderText"></div>
+    <div class="modal-footer">
+      <button class="button" id="confirmUpload" style="background:#007bff;color:white;">Upload</button>
+      <button class="button" id="cancelUpload" style="background:#f44336;color:white;">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div id="fileList" class="file-list"></div>
+  <iframe id="pdfViewer"></iframe>
+</div>
+
+<div id="renameModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">Edit PDF File Names</div>
+    <div id="modalFileList"></div>
+    <div class="modal-footer">
+      <button class="button" id="confirmDownload" style="background:#007bff;color:white;">Confirm & Download</button>
+      <button class="button" id="cancelModal" style="background:#f44336;color:white;">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="loadingIndicator">
+  Generating ZIP: <span id="progressText">0%</span>
+  <div id="progressBarContainer"><div id="progressBar"></div></div>
+</div>
+
+<script>
+// --- PDF.js & OCR ---
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.9.179/build/pdf.worker.min.js';
+let filesArray = [];
+let tempFilesArray = [];
+
+// --- Enable / Disable Inputs ---
+document.getElementById('enableDate').addEventListener('change', e => { 
+    document.getElementById('date').disabled = !e.target.checked; 
+});
+document.getElementById('enableFileNameExt').addEventListener('change', e => { 
+    document.getElementById('fileNameExt').disabled = !e.target.checked; 
+});
+document.getElementById('enableAttachment').addEventListener('change', e => { 
+    const att = document.getElementById('attachment');
+    att.disabled = !e.target.checked;
+
+    if (e.target.checked) {
+        setTimeout(() => att.select(), 50);
+    }
+});
+
+// ✅ NEW — Select Attachment Button
+function selectAttachment() {
+    const att = document.getElementById("attachment");
+    if (!att.disabled) att.select();
+}
+
+// ✅ NEW — Clear Attachment Button
+function clearAttachment() {
+    const att = document.getElementById("attachment");
+    if (!att.disabled) att.value = "";
+}
+
+
+
+// ------------------------------
+// ⚡ Name Utilities
+// ------------------------------
+function titleCasePreserveInitials(str){
+  if(!str) return '';
+  const parts = str.split(/\s+/).filter(Boolean);
+  return parts.map(p=>{
+    const clean=p.replace(/[.,]/g,'');
+    if(clean.length===1 && /^[A-Z]$/i.test(clean)) return clean.toUpperCase()+'.';
+    return clean.charAt(0).toUpperCase()+clean.slice(1).toLowerCase();
+  }).join(' ');
+}
+
+function normalizeSuffix(word){
+  const w=word.replace(/\./g,'').toUpperCase();
+  if(w==='JR') return 'Jr.';
+  if(w==='SR') return 'Sr.';
+  if(/^I{2,4}$/.test(w)) return w;
+  return null;
+}
+
+
+
+// ------------------------------
+// ⚡ Extract PDF Top Region
+// ------------------------------
+async function extractRegionCanvas(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const page = await pdf.getPage(1);
+
+  const viewport = page.getViewport({ scale: 2 });
+  const canvas = document.createElement("canvas");
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+
+  const ctx = canvas.getContext("2d", { alpha: false });
+
+  await page.render({
+    canvasContext: ctx,
+    viewport,
+    intent: "display"
+  }).promise;
+
+  const cropY = Math.round(viewport.height * 0.09);
+  const cropHeight = Math.round(viewport.height * 0.23);
+
+  const cropped = document.createElement("canvas");
+  cropped.width = viewport.width;
+  cropped.height = cropHeight;
+
+  cropped.getContext("2d", { alpha: false })
+    .drawImage(
+      canvas,
+      0, cropY, viewport.width, cropHeight,
+      0, 0, viewport.width, cropHeight
+    );
+
+  return cropped;
+}
+
+
+
+// ------------------------------
+// ⚡ OCR Name Extraction
+// ------------------------------
+async function getOCRName(canvas) {
+  const { data: { text } } = await Tesseract.recognize(canvas, 'eng', {
+    logger: () => {},
+    tessedit_pageseg_mode: 6
+  });
+
+  if (!text) return '';
+
+  const lines = text
+    .split(/\r?\n/)
+    .map(l => l.trim())
+    .filter(Boolean);
+
+  const candidateLines = [];
+
+  for (const raw of lines) {
+    const cleaned = raw
+      .replace(/[^A-Z0-9,\.\s]/ig, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (!cleaned) continue;
+
+    const letters = cleaned.replace(/[^A-Z]/gi, '');
+    if (letters.length < 2) continue;
+
+    candidateLines.push(cleaned);
+  }
+
+  if (candidateLines.length === 0)
+    return text.replace(/\s+/g, ' ').trim();
+
+  let lastNameLine = null, firstMidLine = null;
+
+  for (let i = 0; i < candidateLines.length; i++) {
+    const ln = candidateLines[i];
+    const words = ln.split(/\s+/);
+    const noise = [
+      'DAILY','TIME','RECORD','OCTOBER','CIVIL','SERVICE',
+      'FORM','TOTAL','ARRIVAL','DEPARTURE','VERIFIED','SIGNED'
+    ];
+
+    const up = ln.toUpperCase();
+    if (noise.some(n => up.includes(n))) continue;
+
+    if (ln.includes(',') && ln.split(',').length >= 2) {
+      const parts = ln.split(',').map(p => p.trim()).filter(Boolean);
+      if (parts.length >= 2) {
+        lastNameLine = parts[0];
+        firstMidLine = parts.slice(1).join(' ');
+        break;
+      }
+    }
+
+    if (words.length <= 3) {
+      if (i + 1 < candidateLines.length) {
+        lastNameLine = ln;
+        firstMidLine = candidateLines[i + 1];
+        break;
+      }
+    }
+  }
+
+  if (!lastNameLine && candidateLines.length >= 1) {
+    lastNameLine = candidateLines[0];
+    if (candidateLines.length >= 2)
+      firstMidLine = candidateLines[1];
+  }
+
+  if (!lastNameLine) return '';
+
+  const cleanLast = lastNameLine
+    .replace(/[^A-Z0-9\s\-]/ig, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const cleanFirstRaw = firstMidLine
+    ? firstMidLine.replace(/[^A-Z0-9\s\.\-]/ig, ' ').replace(/\s+/g, ' ').trim()
+    : '';
+
+  let suffix = null;
+  let firstMidNoSuffix = cleanFirstRaw;
+
+  if (cleanFirstRaw) {
+    const parts = cleanFirstRaw.split(/\s+/);
+    const lastToken = parts[parts.length - 1].replace(/\./g, '').toUpperCase();
+    const normalized = normalizeSuffix(lastToken);
+
+    if (normalized) {
+      suffix = normalized;
+      parts.pop();
+      firstMidNoSuffix = parts.join(' ');
+    }
+  }
+
+  let combined = titleCasePreserveInitials(cleanLast);
+  if (firstMidNoSuffix)
+    combined += ', ' + titleCasePreserveInitials(firstMidNoSuffix);
+
+  if (suffix)
+    combined += ' ' + suffix;
+
+  return combined.replace(/\s+/g, ' ').trim();
+}
+
+
+
+// ------------------------------
+// 📁 Folder Upload
+// ------------------------------
+const uploadBtn=document.getElementById('uploadFolderBtn');
+const pdfFilesInput=document.getElementById('pdfFiles');
+const uploadModal=document.getElementById('uploadConfirmModal');
+const selectedFolderText=document.getElementById('selectedFolderText');
+const confirmUpload=document.getElementById('confirmUpload');
+const cancelUpload=document.getElementById('cancelUpload');
+
+uploadBtn.addEventListener('click',()=>{pdfFilesInput.click();});
+
+pdfFilesInput.addEventListener('change',e=>{
+  tempFilesArray=Array.from(e.target.files).filter(f=>f.type==="application/pdf");
+  if(tempFilesArray.length===0) return;
+  const folderPath=tempFilesArray[0].webkitRelativePath.split('/')[0];
+  selectedFolderText.textContent=`Selected folder: ${folderPath} — ${tempFilesArray.length} PDF(s)`;
+  uploadModal.style.display="block";
+});
+
+confirmUpload.addEventListener('click', async()=>{
+  uploadModal.style.display="none";
+  filesArray=tempFilesArray;
+
+  const fileListDiv=document.getElementById('fileList');
+  fileListDiv.innerHTML="";
+
+  for(let i=0;i<filesArray.length;i++){
+    const file=filesArray[i];
+
+    const div=document.createElement('div');
+    div.className="file-item";
+
+    div.innerHTML=`
+      <div class="top-row">
+        <span class="pdf-icon">File Name:</span>
+        <label><input type="checkbox" class="enableName" data-index="${i}" checked> Enable editing</label>
+      </div>
+      <input type="text" id="newName${i}" placeholder="OCR reading...">
+    `;
+
+    fileListDiv.appendChild(div);
+
+    const checkbox=div.querySelector('.enableName');
+    const input=div.querySelector(`#newName${i}`);
+
+    checkbox.addEventListener('change',()=>{ input.disabled=!checkbox.checked; });
+
+    // -------------------------
+    // ✅ NEW — Toggle selection on click
+    // -------------------------
+    div.addEventListener('click',(ev)=>{
+        if (ev.target.tagName === "INPUT") return;
+        div.classList.toggle("selected");
+        document.getElementById('pdfViewer').src = URL.createObjectURL(file);
+    });
+
+    try{
+      const canvas = await extractRegionCanvas(file);
+      const name   = await getOCRName(canvas);
+      input.value  = name || file.name.replace('.pdf','');
+    }catch(e){
+      input.value=file.name.replace('.pdf','');
+    }
+  }
+});
+
+cancelUpload.addEventListener('click',()=>{uploadModal.style.display="none"; pdfFilesInput.value="";});
+
+window.addEventListener('click',e=>{
+  if(e.target===uploadModal) uploadModal.style.display="none";
+});
+
+
+
+// ------------------------------
+// ✔ Select All / Deselect All
+// ------------------------------
+document.getElementById('selectAllBtn').addEventListener('click',()=>{
+  document.querySelectorAll('.file-item').forEach(div=>{
+      div.classList.add('selected');
+  });
+  document.querySelectorAll('.enableName').forEach(cb=>{
+    cb.checked=true;
+    document.getElementById(`newName${cb.dataset.index}`).disabled=false;
+  });
+});
+
+document.getElementById('deselectAllBtn').addEventListener('click',()=>{
+  document.querySelectorAll('.file-item').forEach(div=>{
+      div.classList.remove('selected');
+  });
+  document.querySelectorAll('.enableName').forEach(cb=>{
+    cb.checked=false;
+    document.getElementById(`newName${cb.dataset.index}`).disabled=true;
+  });
+});
+
+
+
+// ------------------------------
+// 📌 Rename Modal
+// ------------------------------
+document.getElementById('renameBtn').addEventListener('click',()=>{
+  if(filesArray.length===0){
+    alert("Please select PDF files!");
+    return;
+  }
+
+  const modal=document.getElementById('renameModal');
+  const modalList=document.getElementById('modalFileList');
+  modalList.innerHTML="";
+
+  const dateVal=document.getElementById('date').disabled?"":document.getElementById('date').value.trim();
+  const fileExtVal=document.getElementById('fileNameExt').disabled?"":document.getElementById('fileNameExt').value.trim();
+  const attachmentVal=document.getElementById('attachment').disabled?"":document.getElementById('attachment').value.trim();
+
+  filesArray.forEach((file,i)=>{
+    const mainName=document.getElementById(`newName${i}`).value.trim()||file.name.replace('.pdf','');
+
+    const newFileName=[mainName,dateVal,fileExtVal,attachmentVal]
+        .filter(Boolean)
+        .join("_")+".pdf";
+
+    const div=document.createElement('div');
+    div.id=`modalItem${i}`;
+    div.style.display="flex";
+    div.style.alignItems="center";
+    div.style.marginBottom="8px";
+
+    div.innerHTML=`
+      <input type="text" id="modalName${i}" value="${newFileName}">
+      <button class="remove-btn" data-index="${i}">❌ Remove</button>
+    `;
+
+    modalList.appendChild(div);
+
+    div.querySelector('.remove-btn').addEventListener('click',e=>{
+      const idx=parseInt(e.target.dataset.index);
+      filesArray.splice(idx,1);
+      div.remove();
+
+      document.querySelectorAll('.remove-btn').forEach((btn,j)=>btn.dataset.index=j);
+      document.querySelectorAll('#modalFileList input[type="text"]').forEach((inp,j)=>inp.id=`modalName${j}`);
+
+      document.querySelector(`#newName${idx}`)?.parentNode?.remove();
+    });
+  });
+
+  modal.style.display="block";
+});
+
+document.getElementById('cancelModal').addEventListener('click',()=>{
+  document.getElementById('renameModal').style.display="none";
+});
+
+
+
+// ------------------------------
+// 📦 Download ZIP
+// ------------------------------
+document.getElementById('confirmDownload').addEventListener('click',async()=>{
+  const zip=new JSZip();
+
+  const loading=document.getElementById('loadingIndicator');
+  const progressBar=document.getElementById('progressBar');
+  const progressText=document.getElementById('progressText');
+
+  loading.style.display="block";
+
+  for(let i=0;i<filesArray.length;i++){
+    const file=filesArray[i];
+    const nameInput=document.getElementById(`modalName${i}`);
+    const newFileName=nameInput.value.trim()||file.name;
+
+    const fileData=await file.arrayBuffer();
+    zip.file(newFileName,fileData);
+
+    const progressPercent=Math.round(((i+1)/filesArray.length)*100);
+    progressBar.style.width=progressPercent+"%";
+    progressText.textContent=progressPercent+"%";
+  }
+
+  zip.generateAsync({type:"blob"}).then(content=>{
+    saveAs(content,"Renamed_PDFs.zip");
+    alert("✔ All PDFs saved in ZIP successfully!");
+
+    document.getElementById('renameModal').style.display="none";
+    loading.style.display="none";
+    progressBar.style.width="0%";
+    progressText.textContent="0%";
+  });
+});
+
+// Close modal on background click
+window.addEventListener('click',e=>{
+  const modal=document.getElementById('renameModal');
+  if(e.target===modal) modal.style.display="none";
+});
+</script>
+
+</body>
+</html>
