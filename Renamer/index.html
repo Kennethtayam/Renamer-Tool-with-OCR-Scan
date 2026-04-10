@@ -13,6 +13,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.9.179/build/pdf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.3/dist/tesseract.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pdf-lib/dist/pdf-lib.min.js"></script>
+
 
     <!-- CSS -->
     <link rel="stylesheet" href="style.css">
@@ -85,9 +87,95 @@
     </svg>
     Rename & Download ZIP <span class="shortcut-hint">(Ctrl+R)</span>
   </button>
+  <button class="button" id="openSplitModalBtn" aria-label="Open PDF splitter">
+  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M19 13H5v-2h14v2z"/>
+    </svg>
+    Split PDF
+  </button>
+  <button class="button" id="autoOrientBtn" aria-label="Auto orient selected PDF files">
+  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M12 6V3L8 7l4 4V8c2.76 0 5 2.24 5 5 0 .65-.13 1.27-.36 1.84l1.53 1.28C18.7 15.2 19 14.13 19 13c0-3.87-3.13-7-7-7zm-5.17.88L5.3 8.16C4.51 9.09 4 10.48 4 12c0 3.87 3.13 7 7 7v3l4-4-4-4v3c-2.76 0-5-2.24-5-5 0-.65.13-1.27.36-1.84z"/>
+  </svg>
+    Auto Orient File
+  </button>
+</div>
+
+  <!-- ================= ENHANCED PDF SPLITTER MODAL ================= -->
+  <div id="splitPdfModal" class="modal">
+    <div class="modal-content enhanced">
+      <span class="close" id="closeSplitModal">&times;</span>
+
+      <h2 id="modal-content h2"> PDF Splitter</h2>
+
+      <div class="splitper-inputs">
+        <input type="file" id="splitPdfInput" accept="application/pdf">
+
+        <label>
+          Split mode:
+          <select id="splitMode">
+            <option value="all">Split all pages</option>
+            <option value="range">Split page range</option>
+          </select>
+        </label>
+
+        <input type="text" id="pageRange" placeholder="Example: 1-3,5" disabled>
+      </div>
+
+      <button class="button primary" id="splitPdfBtn">Split PDF</button>
+
+      <!-- Split status with progress bar -->
+      <div id="splitStatusContainer">
+        <div id="splitStatusText">Waiting to start...</div>
+        <div id="splitProgressBar">
+          <div id="splitProgressFill"></div>
+        </div>
+      </div>
+    </div>
+</div>
+<!-- ================= Splitter loader ================= -->
+<div id="splitLoader" class="split-loader hidden">
+  <div class="spinner"></div>
+  <span>Splitting PDF, please wait...</span>
 </div>
 
 <div id="fileCounter">No files loaded</div>
+
+
+<!-- ================= AUTO ORIENT MODAL =================
+<div id="autoOrientModal" class="modal hidden">
+  <div class="modal-content">
+
+    <button class="modal-close" id="closeAutoOrientModal">&times;</button>
+
+    <h2 class="modal-title">Auto Orient PDF</h2>
+
+    Upload
+    <input
+      type="file"
+      id="autoOrientFileInput"
+      accept="application/pdf"
+    />
+
+    PDF Preview
+    <div class="pdf-preview-container">
+      <iframe id="autoOrientPdfViewer"></iframe>
+    </div>
+
+    Loader
+    <div id="autoOrientLoader" class="split-loader hidden">
+      <div class="spinner"></div>
+      <span>Analyzing & auto-orienting PDF...</span>
+    </div>
+
+     Actions -->
+    <!-- <button class="button success" id="startAutoOrientBtn">
+      Auto Orient PDF
+    </button>
+
+  </div>
+</div> -->
+
 
 <!-- CHANGED: Removed accept attribute to fix upload issue -->
 <input type="file" id="pdfFiles" webkitdirectory multiple style="display:none;">
@@ -128,3 +216,4 @@
 
 <script src="script.js"></script>
 </body>
+</html>

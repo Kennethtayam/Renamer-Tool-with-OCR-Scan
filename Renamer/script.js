@@ -2,6 +2,7 @@
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.9.179/build/pdf.worker.min.js';
 let filesArray = [];
 let tempFilesArray = [];
+let uploadedFolderName = "Renamed_PDFs"; // ⭐ Added this to remember the folder name
 
 // =========================================
 // ⭐ NEW FEATURE ADDED HERE (helper functions)
@@ -461,10 +462,12 @@ pdfFilesInput.addEventListener('change', e => {
     }
     
     let folderName = 'Unknown Folder';
-    if (tempFilesArray[0].webkitRelativePath) {
-        const pathParts = tempFilesArray[0].webkitRelativePath.split('/');
-        folderName = pathParts.length > 1 ? pathParts[0] : 'Root Folder';
-    }
+    if (tempFilesArray[0].webkitRelativePath) {
+        const pathParts = tempFilesArray[0].webkitRelativePath.split('/');
+        folderName = pathParts.length > 1 ? pathParts[0] : 'Root Folder';
+    }
+    
+    uploadedFolderName = folderName; // ⭐ Save it to the global variable!
     
     selectedFolderText.innerHTML = `
         <p><strong>Folder:</strong> ${folderName}</p>
@@ -544,6 +547,195 @@ document.getElementById('deselectAllBtn').addEventListener('click', () => {
     });
     updateSelectedCount();
 });
+
+
+// ================= SPLIT MODAL CONTROLS =================
+const splitModal = document.getElementById("splitPdfModal");
+
+document.getElementById("openSplitModalBtn").addEventListener("click", () => {
+  splitModal.style.display = "block";
+});
+
+document.getElementById("closeSplitModal").addEventListener("click", () => {
+  splitModal.style.display = "none";
+});
+
+window.addEventListener("click", e => {
+  if (e.target === splitModal) splitModal.style.display = "none";
+});
+
+// ================= PDF SPLITTER =================
+const splitPdfInput = document.getElementById("splitPdfInput");
+const splitMode = document.getElementById("splitMode");
+const pageRangeInput = document.getElementById("pageRange");
+const splitPdfBtn = document.getElementById("splitPdfBtn");
+const splitStatusText = document.getElementById("splitStatusText");
+const splitProgressFill = document.getElementById("splitProgressFill");
+const loader = document.getElementById("splitLoader");
+const modal = document.getElementById("splitPdfModal");
+
+splitMode.addEventListener("change", () => {
+  pageRangeInput.disabled = splitMode.value !== "range";
+  if (pageRangeInput.disabled) pageRangeInput.value = "";
+});
+
+splitPdfBtn.addEventListener("click", async () => {
+  const file = splitPdfInput.files[0];
+  if (!file) {
+    alert("Please select a PDF file.");
+    return;
+  }
+
+  // ▶️ START animation
+  loader.classList.remove("hidden");
+  modal.classList.add("processing");
+  splitPdfBtn.disabled = true;
+  splitStatusText.textContent = "Preparing PDF...";
+  splitProgressFill.style.width = "0%";
+
+  try {
+    const buffer = await file.arrayBuffer();
+    const pdfDoc = await PDFLib.PDFDocument.load(buffer);
+    const totalPages = pdfDoc.getPageCount();
+    const zip = new JSZip();
+
+    const pages = splitMode.value === "all"
+      ? [...Array(totalPages).keys()]
+      : parsePageRange(pageRangeInput.value, totalPages);
+
+    if (!pages.length) {
+      alert("Invalid page range.");
+      return;
+    }
+
+    for (let i = 0; i < pages.length; i++) {
+      const pageIndex = pages[i];
+      const newPdf = await PDFLib.PDFDocument.create();
+      const [page] = await newPdf.copyPages(pdfDoc, [pageIndex]);
+      newPdf.addPage(page);
+
+      const bytes = await newPdf.save();
+      zip.file(`page_${pageIndex + 1}.pdf`, bytes);
+
+      // 🔹 Update progress bar
+      const progressPercent = Math.round(((i + 1) / pages.length) * 100);
+      splitProgressFill.style.width = progressPercent + "%";
+      splitStatusText.textContent = `Splitting page ${i + 1} of ${pages.length}...`;
+    }
+
+    const blob = await zip.generateAsync({ type: "blob" });
+    saveAs(blob, "split_pages.zip");
+
+    splitStatusText.textContent = `Done! ${pages.length} pages split.`;
+    splitProgressFill.style.width = "100%";
+
+    // ✅ CLOSE modal and show popup
+    setTimeout(() => {
+      modal.style.display = "none";   // Close the modal
+      alert("Done! Split file.");      // Show popup
+    }, 500); // short delay to show 100% fill
+
+  } catch (err) {
+    console.error(err);
+    splitStatusText.textContent = "Error splitting PDF.";
+  } finally {
+    // ⏹️ STOP animation
+    loader.classList.add("hidden");
+    modal.classList.remove("processing");
+    splitPdfBtn.disabled = false;
+  }
+});
+
+// Page range parser (1-3,5)
+function parsePageRange(input, max) {
+  if (!input) return [];
+  const set = new Set();
+
+  input.split(",").forEach(part => {
+    if (part.includes("-")) {
+      let [s, e] = part.split("-").map(n => parseInt(n));
+      if (isNaN(s) || isNaN(e)) return;
+      s = Math.max(1, s);
+      e = Math.min(max, e);
+      for (let i = s; i <= e; i++) set.add(i - 1);
+    } else {
+      const p = parseInt(part);
+      if (!isNaN(p) && p >= 1 && p <= max) set.add(p - 1);
+    }
+  });
+
+  return [...set].sort((a, b) => a - b);
+}
+
+// /* ================= Auto Orient File Function ================= */
+
+// const autoOrientBtn = document.getElementById('autoOrientBtn');
+// const autoOrientModal = document.getElementById('autoOrientModal');
+// const closeAutoOrientModal = document.getElementById('closeAutoOrientModal');
+
+// const autoOrientInput = document.getElementById('autoOrientFileInput');
+// const autoOrientViewer = document.getElementById('autoOrientPdfViewer');
+// const autoOrientLoader = document.getElementById('autoOrientLoader');
+// const startAutoOrientBtn = document.getElementById('startAutoOrientBtn');
+
+// let autoOrientFile = null;
+
+// /* ================= OPEN MODAL ================= */
+// autoOrientBtn.addEventListener('click', () => {
+//   autoOrientModal.classList.remove('hidden');
+// });
+
+// /* ================= CLOSE MODAL ================= */
+// closeAutoOrientModal.addEventListener('click', () => {
+//   resetAutoOrientModal();
+// });
+
+// /* ================= FILE UPLOAD (1 PDF ONLY) ================= */
+// autoOrientInput.addEventListener('change', () => {
+//   const file = autoOrientInput.files[0];
+//   if (!file || file.type !== 'application/pdf') {
+//     alert('Please upload a valid PDF file.');
+//     return;
+//   }
+
+//   autoOrientFile = file;
+//   autoOrientViewer.src = URL.createObjectURL(file);
+// });
+
+// /* ================= START AUTO ORIENT ================= */
+// startAutoOrientBtn.addEventListener('click', async () => {
+//   if (!autoOrientFile) {
+//     alert('Please upload a PDF file first.');
+//     return;
+//   }
+
+//   autoOrientLoader.classList.remove('hidden');
+//   autoOrientModal.classList.add('processing');
+
+//   try {
+//     // ⏳ PLACEHOLDER (next step: real orientation logic)
+//     await new Promise(resolve => setTimeout(resolve, 2000));
+
+//     alert('Auto orientation complete! (logic ready)');
+//   } catch (err) {
+//     console.error(err);
+//     alert('Failed to auto-orient PDF.');
+//   } finally {
+//     autoOrientLoader.classList.add('hidden');
+//     autoOrientModal.classList.remove('processing');
+//   }
+// });
+
+/* ================= RESET ================= */
+function resetAutoOrientModal() {
+  autoOrientModal.classList.add('hidden');
+  autoOrientInput.value = '';
+  autoOrientViewer.src = '';
+  autoOrientFile = null;
+  autoOrientLoader.classList.add('hidden');
+}
+
+
 
 // --- Rename Modal ---
 document.getElementById('renameBtn').addEventListener('click', () => {
@@ -677,8 +869,8 @@ document.getElementById('confirmDownload').addEventListener('click', async () =>
     }
 
     try {
-        const content = await zip.generateAsync({type: "blob"});
-        saveAs(content, "Renamed_PDFs.zip");
+        const content = await zip.generateAsync({type: "blob"});
+        saveAs(content, `${uploadedFolderName}.zip`); // ⭐ Use the dynamic folder name here
         
         if (hasErrors) {
             alert("⚠ Some files may not have been included in the ZIP due to errors.");

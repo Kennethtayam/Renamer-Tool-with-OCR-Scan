@@ -1,4 +1,6 @@
 :root {
+        --Spliter-Button-bg: #000000;
+        --AutoOrient-Button-bg: #a20eb6;
         --upload-button-bg: #555;
         --primary-color: #007bff;
         --success-color: #4caf50;
@@ -129,8 +131,16 @@
             background: var(--primary-color);
             color: white;
         }
+    #openSplitModalBtn {
+            background: var(--Spliter-Button-bg);
+            color: white;
+        }    
     #clearAllBtn {
             background: var(--warning-color);
+            color: white;
+        }
+    #autoOrientBtn {
+            background: var(--AutoOrient-Button-bg);
             color: white;
         }
 
@@ -312,23 +322,218 @@
             transition: var(--transition);
         }
 
+        /* ================= MODAL BASE ================= */
+        .modal {
+        display: none;
+        position: fixed;
+        z-index: 20000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.6);
+        backdrop-filter: blur(3px);
+        transition: opacity 0.3s ease;
+        }
+
+        .modal-content.enhanced {
+        background: #fff;
+        padding: 30px 25px;
+        width: 450px;
+        max-width: 90%;
+        margin: 8% auto;
+        border-radius: 12px;
+        box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+        position: relative;
+        animation: fadeInUp 0.4s ease;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .modal-content h2 {
+            margin-bottom: 22px;
+            font-size: 40px;
+            color: var(--primary-color);
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);    
+            text-align: center;
+            /* margin-top: 0;
+            font-size: 22px;
+            color: #222;
+            text-align: center;
+            margin-bottom: 20px; */
+        }
+
+        .modal-content .close {
+        position: absolute;
+        right: 20px;
+        top: 15px;
+        font-size: 24px;
+        font-weight: bold;
+        color: #555;
+        cursor: pointer;
+        transition: color 0.2s ease;
+        }
+        .modal-content .close:hover {
+        color: #f44336;
+        }
+
+        .splitper-inputs {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        margin-bottom: 20px;
+        }
+
+        .splitper-inputs input[type="file"] {
+        padding: 10px;
+        border-radius: 6px;
+        border: 1px solid #ccc;
+        cursor: pointer;
+        }
+
+        .splitper-inputs input[type="text"] {
+        padding: 10px 12px;
+        border-radius: 6px;
+        border: 1px solid #ccc;
+        font-size: 14px;
+        transition: border 0.2s ease;
+        }
+        .splitper-inputs input[type="text"]:focus {
+        border-color: #4caf50;
+        outline: none;
+        }
+
+        .splitper-inputs select {
+        padding: 10px;
+        border-radius: 6px;
+        border: 1px solid #ccc;
+        cursor: pointer;
+        font-size: 14px;
+        }
+
+        .button.primary {
+        display: block;
+        width: 100%;
+        padding: 12px;
+        border: none;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #4caf50, #45a049);
+        color: #fff;
+        font-weight: 600;
+        font-size: 15px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        }
+
+        .button.primary:hover {
+        background: linear-gradient(135deg, #45a049, #3e8e41);
+        transform: translateY(-2px);
+        }
+
+        /* Split Status Container */
+        #splitStatusContainer {
+        margin-top: 20px;
+        text-align: center;
+        }
+
+        /* Status text */
+        #splitStatusText {
+        font-size: 13px;
+        color: #555;
+        margin-bottom: 8px;
+        }
+
+        /* Outer progress bar */
+        #splitProgressBar {
+        width: 100%;
+        height: 12px;
+        background-color: #eee;
+        border-radius: 6px;
+        overflow: hidden;
+        }
+
+        /* Inner progress fill */
+        #splitProgressFill {
+        height: 100%;
+        width: 0%; /* start at 0% */
+        background-color: #3498db; /* blue color */
+        border-radius: 6px;
+        transition: width 0.3s ease;
+        }
+
+
+        /* ================= ANIMATION ================= */
+        @keyframes fadeInUp {
+        0% { opacity: 0; transform: translateY(20px); }
+        100% { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ================= SPLIT LOADER ================= */
+        .split-loader {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        margin-top: 20px;
+        font-size: 14px;
+        color: #4caf50;
+        animation: fadeIn 0.3s ease;
+        }
+
+        .split-loader.hidden {
+        display: none;
+        }
+
+        .spinner {
+        width: 22px;
+        height: 22px;
+        border: 3px solid #c8e6c9;
+        border-top: 3px solid #4caf50;
+        border-radius: 50%;
+        animation: spin 0.9s linear infinite;
+        }
+
+        /* Disable modal interaction while running */
+        .modal.processing {
+        pointer-events: none;
+        }
+        .modal.processing .modal-content {
+        pointer-events: all;
+        }
+
+        /* Animations */
+        @keyframes spin {
+        to { transform: rotate(360deg); }
+        }
+
+        @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(6px); }
+        to { opacity: 1; transform: translateY(0); }
+        }
+
+
+
         .remove-btn:hover {
             background: #f78585;
             transform: scale(1.05);
         }
-    #loadingIndicator {
+        #loadingIndicator {
             display: none;
             position: fixed;
             top: 20px;
             right: 20px;
-            background: rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.85);
             color: white;
             padding: 15px 20px;
             border-radius: var(--border-radius);
             font-weight: bold;
-            z-index: 10000;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+
+            /* 🔥 IMPORTANT FIX */
+            z-index: 99999;
+
+            box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+            backdrop-filter: none; /* prevent inherited blur */
             animation: slideInRight 0.3s ease;
+            
         }
 
         @keyframes slideInRight {
@@ -463,7 +668,7 @@
                 padding: 10px;
             }
 
-            h2 {
+            h1 {
                 font-size: 28px;
                 margin-bottom: 20px;
             }
@@ -550,4 +755,65 @@
             stroke-width: 0;
             stroke: currentColor;
             fill: currentColor;
+        }
+
+        
+        /* ================= MODAL BASE ================= */
+        .modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+            backdrop-filter: blur(4px);
+
+            /* ✅ HIDE MODALS BY DEFAULT */
+            display: none;
+
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+
+        .modal.hidden {
+        display: none;
+        }
+
+        .modal-content {
+        background: #fff;
+        width: 1000px;
+        max-width: 100%;
+        border-radius: 12px;
+        padding: 20px;
+        position: relative;
+        animation: fadeIn 0.25s ease;
+        }
+
+        .modal-title {
+        text-align: center;
+        margin-bottom: 12px;
+        }
+
+        .modal-close {
+        position: absolute;
+        top: 10px;
+        right: 14px;
+        border: none;
+        background: none;
+        font-size: 22px;
+        cursor: pointer;
+        }
+
+        /* ================= PDF PREVIEW ================= */
+        .pdf-preview-container {
+        margin: 12px 0;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        overflow: hidden;
+        height: 300px;
+        }
+
+        #autoOrientPdfViewer {
+        width: 100%;
+        height: 100%;
+        border: none;
         }
