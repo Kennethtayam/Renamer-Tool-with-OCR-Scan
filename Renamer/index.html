@@ -14,6 +14,7 @@
     <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.9.179/build/pdf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.1.3/dist/tesseract.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/pdf-lib/dist/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
 
     <!-- CSS -->
@@ -103,37 +104,44 @@
 
   <!-- ================= ENHANCED PDF SPLITTER MODAL ================= -->
   <div id="splitPdfModal" class="modal">
-    <div class="modal-content enhanced">
-      <span class="close" id="closeSplitModal">&times;</span>
+  <div class="modal-content enhanced">
+    <span class="close" id="closeSplitModal">&times;</span>
 
-      <h2 id="modal-content h2"> PDF Splitter</h2>
+    <h2 id="modal-content h2"> PDF Splitter</h2>
 
-      <div class="splitper-inputs">
-        <input type="file" id="splitPdfInput" accept="application/pdf">
+    <div class="splitper-inputs">
+      <input type="file" id="splitPdfInput" accept="application/pdf">
 
-        <label>
-          Split mode:
-          <select id="splitMode">
-            <option value="all">Split all pages</option>
-            <option value="range">Split page range</option>
-          </select>
-        </label>
+      <label>
+        Split mode:
+      <select id="splitMode">
+        <option value="range">Custom Range</option>
+        <option value="all">Every Single Page</option>
+        <option value="batch5">Transmittal + 5 Pages</option>
+        <option value="starts">Split by Starting Pages</option>
+      </select>
+      </label>
 
-        <input type="text" id="pageRange" placeholder="Example: 1-3,5" disabled>
-      </div>
+      <input type="text" id="pageRange" placeholder="Example: 1-3,5 or 1, 6, 12" disabled>
+    </div>
 
-      <button class="button primary" id="splitPdfBtn">Split PDF</button>
+    <div id="thumbnailContainer" class="hidden">
+      <p style="margin-top: 10px; font-size: 14px; font-weight: 600; color: #333;">
+        Click the pages where a new record begins:
+      </p>
+      <div id="thumbnailGrid"></div>
+    </div>
+    <button class="button primary" id="splitPdfBtn" style="margin-top: 15px;">Split PDF</button>
 
-      <!-- Split status with progress bar -->
-      <div id="splitStatusContainer">
-        <div id="splitStatusText">Waiting to start...</div>
-        <div id="splitProgressBar">
-          <div id="splitProgressFill"></div>
-        </div>
+    <div id="splitStatusContainer">
+      <div id="splitStatusText">Waiting to start...</div>
+      <div id="splitProgressBar">
+        <div id="splitProgressFill"></div>
       </div>
     </div>
+  </div>
 </div>
-<!-- ================= Splitter loader ================= -->
+
 <div id="splitLoader" class="split-loader hidden">
   <div class="spinner"></div>
   <span>Splitting PDF, please wait...</span>

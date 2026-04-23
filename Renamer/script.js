@@ -565,6 +565,10 @@ window.addEventListener("click", e => {
 });
 
 // ================= PDF SPLITTER =================
+// // Tell pdf.js where to find its worker file (required for the visual thumbnails)
+ pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ================= DOM ELEMENTS =================
 const splitPdfInput = document.getElementById("splitPdfInput");
 const splitMode = document.getElementById("splitMode");
 const pageRangeInput = document.getElementById("pageRange");
@@ -573,12 +577,113 @@ const splitStatusText = document.getElementById("splitStatusText");
 const splitProgressFill = document.getElementById("splitProgressFill");
 const loader = document.getElementById("splitLoader");
 const modal = document.getElementById("splitPdfModal");
+// const pdfjsLib = window['pdfjs-dist/build/pdf'] || window.pdfjsLib;
 
-splitMode.addEventListener("change", () => {
-  pageRangeInput.disabled = splitMode.value !== "range";
+// Visual Thumbnail DOM Elements
+const thumbnailContainer = document.getElementById("thumbnailContainer");
+const thumbnailGrid = document.getElementById("thumbnailGrid");
+let selectedStartPages = new Set(); // Stores the clicked pages
+
+
+// ================= EVENT LISTENERS =================
+
+// Disable/Enable the input box & handle thumbnail visibility depending on the selected mode
+splitMode.addEventListener("change", async () => {
+  // Enable the input box for BOTH "range" and "starts" modes
+  pageRangeInput.disabled = !["range", "starts"].includes(splitMode.value);
   if (pageRangeInput.disabled) pageRangeInput.value = "";
+
+  // Show or generate thumbnails if "starts" mode is selected
+  if (splitMode.value === "starts" && splitPdfInput.files[0]) {
+    thumbnailContainer.classList.remove("hidden");
+    if (thumbnailGrid.innerHTML === "") {
+      await generateThumbnails(splitPdfInput.files[0]);
+    }
+  } else {
+    thumbnailContainer.classList.add("hidden");
+  }
 });
 
+// Generate thumbnails automatically when a file is uploaded (if in "starts" mode)
+splitPdfInput.addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  // Clear any existing thumbnails from a previous file
+  thumbnailGrid.innerHTML = "";
+
+  if (splitMode.value === "starts") {
+    thumbnailContainer.classList.remove("hidden");
+    await generateThumbnails(file);
+  }
+});
+
+
+// ================= THUMBNAIL GENERATOR =================
+async function generateThumbnails(file) {
+  thumbnailGrid.innerHTML = "Loading previews..."; 
+  selectedStartPages.clear();
+  pageRangeInput.value = ""; 
+
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    thumbnailGrid.innerHTML = ""; // Clear loading text
+
+    // Loop through all pages in the PDF
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale: 0.3 }); // Scale down for thumbnail
+
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+
+      await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+
+      const wrapper = document.createElement("div");
+      wrapper.className = "thumbnail-wrapper";
+      
+      // Auto-select page 1 because it's always the start of the first document
+      if (i === 1) {
+        wrapper.classList.add("selected");
+        selectedStartPages.add(i);
+        updateInputBox();
+      }
+
+      wrapper.appendChild(canvas);
+      const label = document.createElement("p");
+      label.textContent = `Page ${i}`;
+      wrapper.appendChild(label);
+
+      // Click event to toggle selection
+      wrapper.addEventListener("click", () => {
+        wrapper.classList.toggle("selected");
+        if (selectedStartPages.has(i)) {
+          selectedStartPages.delete(i);
+        } else {
+          selectedStartPages.add(i);
+        }
+        updateInputBox();
+      });
+
+      thumbnailGrid.appendChild(wrapper);
+    }
+  } catch (error) {
+    console.error("Error generating thumbnails:", error);
+    thumbnailGrid.innerHTML = "Error loading PDF previews.";
+  }
+}
+
+// Helper to push clicked thumbnails into the text box
+function updateInputBox() {
+  const sortedArray = Array.from(selectedStartPages).sort((a, b) => a - b);
+  pageRangeInput.value = sortedArray.join(", ");
+}
+
+
+// ================= MAIN SPLIT LOGIC =================
 splitPdfBtn.addEventListener("click", async () => {
   const file = splitPdfInput.files[0];
   if (!file) {
@@ -599,45 +704,97 @@ splitPdfBtn.addEventListener("click", async () => {
     const totalPages = pdfDoc.getPageCount();
     const zip = new JSZip();
 
-    const pages = splitMode.value === "all"
-      ? [...Array(totalPages).keys()]
-      : parsePageRange(pageRangeInput.value, totalPages);
+    let pageGroups = [];
+    
+    // Group 1: Extract every single page
+    if (splitMode.value === "all") {
+      pageGroups = [...Array(totalPages).keys()].map(i => [i]);
+      
+    // Group 2: Transmittal + 5 Pages per employee
+    } else if (splitMode.value === "batch5") {
+      if (totalPages > 0) pageGroups.push([0]); 
+      for (let i = 1; i < totalPages; i += 5) {
+        const chunk = [];
+        for (let j = 0; j < 5; j++) {
+          if (i + j < totalPages) chunk.push(i + j);
+        }
+        pageGroups.push(chunk);
+      }
+      
+    // Group 3: Split by Starting Pages (Using Input Box / Thumbnails)
+    } else if (splitMode.value === "starts") {
+      let starts = pageRangeInput.value.split(",")
+        .map(n => parseInt(n.trim()))
+        .filter(n => !isNaN(n) && n >= 1 && n <= totalPages)
+        .sort((a, b) => a - b); 
 
-    if (!pages.length) {
-      alert("Invalid page range.");
-      return;
+      starts = [...new Set(starts)]; // Remove duplicates
+
+      if (starts.length === 0) {
+        alert("Please enter valid starting page numbers or click the thumbnails.");
+        return; // Exits safely
+      }
+
+      for (let i = 0; i < starts.length; i++) {
+        let currentStart = starts[i] - 1; 
+        let currentEnd = (i + 1 < starts.length) ? (starts[i + 1] - 1) : totalPages;
+        
+        let chunk = [];
+        for (let j = currentStart; j < currentEnd; j++) {
+          chunk.push(j);
+        }
+        if (chunk.length > 0) pageGroups.push(chunk);
+      }
+
+    // Group 4: Custom Range (1-5, 6-12)
+    } else {
+      pageGroups = parsePageGroups(pageRangeInput.value, totalPages);
     }
 
-    for (let i = 0; i < pages.length; i++) {
-      const pageIndex = pages[i];
+    if (!pageGroups.length) {
+      alert("Invalid page range.");
+      return; 
+    }
+
+    // Process the groups and generate PDFs
+    for (let i = 0; i < pageGroups.length; i++) {
+      const group = pageGroups[i]; 
       const newPdf = await PDFLib.PDFDocument.create();
-      const [page] = await newPdf.copyPages(pdfDoc, [pageIndex]);
-      newPdf.addPage(page);
+      
+      const copiedPages = await newPdf.copyPages(pdfDoc, group);
+      copiedPages.forEach(page => newPdf.addPage(page));
 
       const bytes = await newPdf.save();
-      zip.file(`page_${pageIndex + 1}.pdf`, bytes);
+      
+      const startPage = group[0] + 1;
+      const endPage = group[group.length - 1] + 1;
+      const fileName = group.length === 1 
+          ? `page_${startPage}.pdf` 
+          : `pages_${startPage}-${endPage}.pdf`;
 
-      // 🔹 Update progress bar
-      const progressPercent = Math.round(((i + 1) / pages.length) * 100);
+      zip.file(fileName, bytes);
+
+      const progressPercent = Math.round(((i + 1) / pageGroups.length) * 100);
       splitProgressFill.style.width = progressPercent + "%";
-      splitStatusText.textContent = `Splitting page ${i + 1} of ${pages.length}...`;
+      splitStatusText.textContent = `Processing document ${i + 1} of ${pageGroups.length}...`;
     }
 
+    // Generate zip and download
     const blob = await zip.generateAsync({ type: "blob" });
     saveAs(blob, "split_pages.zip");
 
-    splitStatusText.textContent = `Done! ${pages.length} pages split.`;
+    splitStatusText.textContent = `Done! Created ${pageGroups.length} files.`;
     splitProgressFill.style.width = "100%";
 
     // ✅ CLOSE modal and show popup
     setTimeout(() => {
-      modal.style.display = "none";   // Close the modal
-      alert("Done! Split file.");      // Show popup
-    }, 500); // short delay to show 100% fill
+      modal.classList.add("hidden");   
+      alert("Done! Split file.");      
+    }, 500);
 
   } catch (err) {
-    console.error(err);
-    splitStatusText.textContent = "Error splitting PDF.";
+    console.error("Error splitting PDF:", err);
+    splitStatusText.textContent = "Error occurred while splitting PDF.";
   } finally {
     // ⏹️ STOP animation
     loader.classList.add("hidden");
@@ -646,26 +803,48 @@ splitPdfBtn.addEventListener("click", async () => {
   }
 });
 
-// Page range parser (1-3,5)
-function parsePageRange(input, max) {
+// Helper for parsing custom ranges
+function parsePageGroups(input, max) {
   if (!input) return [];
-  const set = new Set();
+  const groups = [];
 
   input.split(",").forEach(part => {
+    const set = new Set();
     if (part.includes("-")) {
       let [s, e] = part.split("-").map(n => parseInt(n));
       if (isNaN(s) || isNaN(e)) return;
       s = Math.max(1, s);
       e = Math.min(max, e);
-      for (let i = s; i <= e; i++) set.add(i - 1);
+      for (let i = s; i <= e; i++) set.add(i - 1); 
     } else {
       const p = parseInt(part);
       if (!isNaN(p) && p >= 1 && p <= max) set.add(p - 1);
     }
+    if (set.size > 0) groups.push([...set].sort((a, b) => a - b));
   });
 
-  return [...set].sort((a, b) => a - b);
+  return groups;
 }
+    // Page range parser (1-3,5)
+    // function parsePageRange(input, max) {
+    //   if (!input) return [];
+    //   const set = new Set();
+
+    //   input.split(",").forEach(part => {
+    //     if (part.includes("-")) {
+    //       let [s, e] = part.split("-").map(n => parseInt(n));
+    //       if (isNaN(s) || isNaN(e)) return;
+    //       s = Math.max(1, s);
+    //       e = Math.min(max, e);
+    //       for (let i = s; i <= e; i++) set.add(i - 1);
+    //     } else {
+    //       const p = parseInt(part);
+    //       if (!isNaN(p) && p >= 1 && p <= max) set.add(p - 1);
+    //     }
+    //   });
+
+    //   return [...set].sort((a, b) => a - b);
+    // }
 
 // /* ================= Auto Orient File Function ================= */
 
