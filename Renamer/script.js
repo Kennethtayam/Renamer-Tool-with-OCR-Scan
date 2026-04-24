@@ -619,7 +619,7 @@ splitPdfInput.addEventListener("change", async (e) => {
 });
 
 
-// ================= THUMBNAIL GENERATOR =================
+// ================= HIGH-SPEED THUMBNAIL GENERATOR =================
 async function generateThumbnails(file) {
   thumbnailGrid.innerHTML = "Loading previews..."; 
   selectedStartPages.clear();
@@ -630,34 +630,33 @@ async function generateThumbnails(file) {
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     thumbnailGrid.innerHTML = ""; // Clear loading text
 
-    // Loop through all pages in the PDF
+    // STEP 1: Instantly create all the empty boxes (Super fast)
+    const renderQueue = [];
+    
     for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const viewport = page.getViewport({ scale: 0.3 }); // Scale down for thumbnail
-
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
-      canvas.height = viewport.height;
-      canvas.width = viewport.width;
-
-      await page.render({ canvasContext: ctx, viewport: viewport }).promise;
-
       const wrapper = document.createElement("div");
       wrapper.className = "thumbnail-wrapper";
       
-      // Auto-select page 1 because it's always the start of the first document
+      // Auto-select page 1
       if (i === 1) {
         wrapper.classList.add("selected");
         selectedStartPages.add(i);
         updateInputBox();
       }
 
+      // Create an empty canvas as a placeholder
+      const canvas = document.createElement("canvas");
+      // Give it a default size so the grid doesn't jump around
+      canvas.width = 140; 
+      canvas.height = 180; 
+      canvas.style.backgroundColor = "#eaeaea"; // Light gray loading box
+
       wrapper.appendChild(canvas);
       const label = document.createElement("p");
       label.textContent = `Page ${i}`;
       wrapper.appendChild(label);
 
-      // Click event to toggle selection
+      // Click event
       wrapper.addEventListener("click", () => {
         wrapper.classList.toggle("selected");
         if (selectedStartPages.has(i)) {
@@ -669,7 +668,31 @@ async function generateThumbnails(file) {
       });
 
       thumbnailGrid.appendChild(wrapper);
+
+      // Save this page to be painted in Step 2
+      renderQueue.push({ pageNum: i, canvas: canvas });
     }
+
+    // STEP 2: Render the actual images in background batches
+    // Doing 5 at a time prevents the browser from freezing!
+    const batchSize = 5;
+    for (let i = 0; i < renderQueue.length; i += batchSize) {
+      const batch = renderQueue.slice(i, i + batchSize);
+      
+      // Render this batch of 5 pages simultaneously
+      await Promise.all(batch.map(async (task) => {
+        const page = await pdf.getPage(task.pageNum);
+        const viewport = page.getViewport({ scale: 0.5 }); // High quality size
+        
+        task.canvas.height = viewport.height;
+        task.canvas.width = viewport.width;
+        task.canvas.style.backgroundColor = "transparent"; // Remove gray background
+        
+        const ctx = task.canvas.getContext("2d");
+        await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+      }));
+    }
+
   } catch (error) {
     console.error("Error generating thumbnails:", error);
     thumbnailGrid.innerHTML = "Error loading PDF previews.";
@@ -756,32 +779,55 @@ splitPdfBtn.addEventListener("click", async () => {
       return; 
     }
 
-    // Process the groups and generate PDFs
-    for (let i = 0; i < pageGroups.length; i++) {
-      const group = pageGroups[i]; 
-      const newPdf = await PDFLib.PDFDocument.create();
+    // ================= HIGH-SPEED PARALLEL SPLITTING =================
+    let completedCount = 0;
+    
+    // ⚡ SMART BATCHING: If it's a huge file, do fewer at a time so RAM doesn't crash
+    const batchSize = totalPages > 100 ? 3 : 10; 
+
+    for (let i = 0; i < pageGroups.length; i += batchSize) {
+    const batch = pageGroups.slice(i, i + batchSize);
+    // ... keep the rest of your Promise.all loop exactly the same
       
-      const copiedPages = await newPdf.copyPages(pdfDoc, group);
-      copiedPages.forEach(page => newPdf.addPage(page));
+      // Process the current batch of 10 all at the same time
+      await Promise.all(batch.map(async (group) => {
+        const newPdf = await PDFLib.PDFDocument.create();
+        
+        // Copy and add pages
+        const copiedPages = await newPdf.copyPages(pdfDoc, group);
+        copiedPages.forEach(page => newPdf.addPage(page));
 
-      const bytes = await newPdf.save();
-      
-      const startPage = group[0] + 1;
-      const endPage = group[group.length - 1] + 1;
-      const fileName = group.length === 1 
-          ? `page_${startPage}.pdf` 
-          : `pages_${startPage}-${endPage}.pdf`;
+        // Save to bytes
+        const bytes = await newPdf.save();
+        
+        // Dynamic Naming
+        const startPage = group[0] + 1;
+        const endPage = group[group.length - 1] + 1;
+        const fileName = group.length === 1 
+            ? `page_${startPage}.pdf` 
+            : `pages_${startPage}-${endPage}.pdf`;
 
-      zip.file(fileName, bytes);
+        // Add to zip
+        zip.file(fileName, bytes);
 
-      const progressPercent = Math.round(((i + 1) / pageGroups.length) * 100);
-      splitProgressFill.style.width = progressPercent + "%";
-      splitStatusText.textContent = `Processing document ${i + 1} of ${pageGroups.length}...`;
+        // Safely update the progress bar
+        completedCount++;
+        const progressPercent = Math.round((completedCount / pageGroups.length) * 100);
+        splitProgressFill.style.width = progressPercent + "%";
+        splitStatusText.textContent = `Processing document ${completedCount} of ${pageGroups.length}...`;
+      }));
     }
+    // =================================================================
 
-    // Generate zip and download
-    const blob = await zip.generateAsync({ type: "blob" });
-    saveAs(blob, "split_pages.zip");
+    // Generate zip and download (STORE = NO COMPRESSION = SUPER FAST)
+    const blob = await zip.generateAsync({ 
+      type: "blob",
+      compression: "STORE" // ⚡ This tells JSZip to skip the slow math
+    });
+    
+    // Grab the original file name and remove ".pdf"
+    const originalFileName = file.name.replace(/\.pdf$/i, "");
+    saveAs(blob, `${originalFileName}.zip`);
 
     splitStatusText.textContent = `Done! Created ${pageGroups.length} files.`;
     splitProgressFill.style.width = "100%";
