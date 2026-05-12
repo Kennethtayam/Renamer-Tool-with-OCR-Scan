@@ -584,6 +584,62 @@ const thumbnailContainer = document.getElementById("thumbnailContainer");
 const thumbnailGrid = document.getElementById("thumbnailGrid");
 let selectedStartPages = new Set(); // Stores the clicked pages
 
+// ========================================================
+// ⭐ AI NAME EXTRACTOR LOGIC
+// ========================================================
+let autoExtractedNames = {}; // Memory bank for extracted names
+
+function extractPdsName(ocrText) {
+    const text = ocrText.toUpperCase();
+    let surname = "";
+    let firstname = "";
+
+    // Split the OCR text line by line
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        // 1. Hunt for the SURNAME
+        // (Make sure we don't accidentally grab the Spouse's or Father's surname lower down)
+        if (line.includes("SURNAME") && !line.includes("SPOUSE") && !line.includes("FATHER")) {
+            let parts = line.split("SURNAME");
+            // If the name is on the same line (e.g., "1. SURNAME BALOTCOPO")
+            if (parts.length > 1 && parts[1].replace(/[^A-Z]/g, '').length > 1) {
+                surname = parts[1].replace(/[^A-Z\s\-]/g, '').trim();
+            } 
+            // If the name dropped to the line below
+            else if (i + 1 < lines.length) {
+                surname = lines[i+1].replace(/[^A-Z\s\-]/g, '').trim();
+            }
+        }
+
+        // 2. Hunt for the FIRST NAME
+        if (line.includes("FIRST NAME")) {
+            let parts = line.split("FIRST NAME");
+            if (parts.length > 1) {
+                // Grab everything before the word "NAME EXTENSION"
+                let namePart = parts[1].split("NAME EXTENSION")[0];
+                firstname = namePart.replace(/[^A-Z\s\-]/g, '').trim();
+            } else if (i + 1 < lines.length) {
+                let namePart = lines[i+1].split("NAME EXTENSION")[0];
+                firstname = namePart.replace(/[^A-Z\s\-]/g, '').trim();
+            }
+        }
+    }
+
+    // Clean up random massive spaces the OCR sometimes adds
+    surname = surname.split(/\s{2,}/)[0]; 
+    firstname = firstname.split(/\s{2,}/)[0];
+
+    // Format the final file name
+    if (surname && firstname) {
+        return `${surname}_${firstname}`; // e.g., "BALOTCOPO_ELAINE"
+    } else if (surname) {
+        return surname;
+    }
+    return null; // Return nothing if it couldn't read it cleanly
+}
 
 // ================= EVENT LISTENERS =================
 
@@ -619,44 +675,42 @@ splitPdfInput.addEventListener("change", async (e) => {
 });
 
 
-// ================= HIGH-SPEED THUMBNAIL GENERATOR =================
-async function generateThumbnails(file) {
-  thumbnailGrid.innerHTML = "Loading previews..."; 
-  selectedStartPages.clear();
-  pageRangeInput.value = ""; 
+    // ================= HIGH-SPEED THUMBNAIL GENERATOR WITH AI AUTO-SELECT =================
+    async function generateThumbnails(file) {
+    thumbnailGrid.innerHTML = "Loading previews & scanning for PDS..."; 
+    selectedStartPages.clear();
+    pageRangeInput.value = ""; 
 
-  try {
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    thumbnailGrid.innerHTML = ""; // Clear loading text
+    try {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        thumbnailGrid.innerHTML = ""; 
 
-    // STEP 1: Instantly create all the empty boxes (Super fast)
     const renderQueue = [];
     
+    // STEP 1: Build the UI Boxes
     for (let i = 1; i <= pdf.numPages; i++) {
       const wrapper = document.createElement("div");
       wrapper.className = "thumbnail-wrapper";
       
-      // Auto-select page 1
+      // Always select Page 1 by default
       if (i === 1) {
         wrapper.classList.add("selected");
         selectedStartPages.add(i);
         updateInputBox();
       }
 
-      // Create an empty canvas as a placeholder
       const canvas = document.createElement("canvas");
-      // Give it a default size so the grid doesn't jump around
       canvas.width = 140; 
       canvas.height = 180; 
-      canvas.style.backgroundColor = "#eaeaea"; // Light gray loading box
+      canvas.style.backgroundColor = "#eaeaea"; 
 
       wrapper.appendChild(canvas);
       const label = document.createElement("p");
       label.textContent = `Page ${i}`;
       wrapper.appendChild(label);
 
-      // Click event
+      // Manual click toggle
       wrapper.addEventListener("click", () => {
         wrapper.classList.toggle("selected");
         if (selectedStartPages.has(i)) {
@@ -668,31 +722,91 @@ async function generateThumbnails(file) {
       });
 
       thumbnailGrid.appendChild(wrapper);
-
-      // Save this page to be painted in Step 2
-      renderQueue.push({ pageNum: i, canvas: canvas });
+      
+      // ⭐ Added 'wrapper' to the queue so the AI can click it later
+      renderQueue.push({ pageNum: i, canvas: canvas, wrapper: wrapper });
     }
 
-    // STEP 2: Render the actual images in background batches
-    // Doing 5 at a time prevents the browser from freezing!
+    // STEP 2: Render Images & Run Smart AI Detection
     const batchSize = 5;
     for (let i = 0; i < renderQueue.length; i += batchSize) {
       const batch = renderQueue.slice(i, i + batchSize);
       
-      // Render this batch of 5 pages simultaneously
       await Promise.all(batch.map(async (task) => {
         const page = await pdf.getPage(task.pageNum);
-        const viewport = page.getViewport({ scale: 0.5 }); // High quality size
+        
+        // ⚡ UPGRADE 1: High-Res Render (scale: 1.0) so the AI can actually read the letters
+        const viewport = page.getViewport({ scale: 1.0 }); 
         
         task.canvas.height = viewport.height;
         task.canvas.width = viewport.width;
-        task.canvas.style.backgroundColor = "transparent"; // Remove gray background
-        
+        task.canvas.style.backgroundColor = "transparent"; 
         const ctx = task.canvas.getContext("2d");
         await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+
+        // ========================================================
+        // ⭐ SMART AI DETECTION START ⭐
+        // ========================================================
+        let isPDS = false;
+
+        // Extract any hidden digital text first
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items.map(item => item.str).join(" ").toUpperCase();
+        
+        // ⚡ UPGRADE 3: Fuzzy Matching (strips all spaces and punctuation)
+        const cleanText = pageText.replace(/[^A-Z0-9]/g, '');
+
+        if (cleanText.includes("PERSONALDATASHEET") || cleanText.includes("CSFORM212") || cleanText.includes("CSFORMNO212")) {
+            isPDS = true;
+        } 
+        // If there is barely any digital text, it's a scanned image. Run OCR!
+        else if (cleanText.length < 50) { 
+            const cropCanvas = document.createElement("canvas");
+            cropCanvas.width = task.canvas.width;
+            
+            // ⚡ UPGRADE 2: Scan the top 30% of the page to be safe
+            cropCanvas.height = task.canvas.height * 0.40; 
+            const cropCtx = cropCanvas.getContext("2d");
+            cropCtx.drawImage(task.canvas, 0, 0, task.canvas.width, cropCanvas.height, 0, 0, cropCanvas.width, cropCanvas.height);
+
+            try {
+                // Run Tesseract OCR silently
+                const { data: { text } } = await Tesseract.recognize(cropCanvas, 'eng', { logger: () => {} });
+                
+                // Fuzzy match the OCR result too!
+                const cleanOcr = text.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                
+                if (cleanOcr.includes("PERSONALDATASHEET") || cleanOcr.includes("CSFORM212") || cleanOcr.includes("CSFORMNO212") || cleanOcr.includes("DATASHEET")) {
+                    isPDS = true;
+                    
+                    // 🧠 NEW: Try to extract the employee's name!
+                    const foundName = extractPdsName(text);
+                    if (foundName) {
+                        autoExtractedNames[task.pageNum] = foundName; // Save to memory
+                        
+                        // Display the name in blue text under the thumbnail!
+                        task.label.innerHTML = `Page ${task.pageNum}<br><span style="color: #0056b3; font-size: 11px; font-weight: bold;">${foundName}</span>`;
+                    }
+                }
+            } catch(e) { 
+                console.log("OCR failed on page " + task.pageNum); 
+            }
+        }
+
+        // If the AI found a PDS (and it's not page 1), auto-select it!
+        if (isPDS && task.pageNum !== 1) {
+            if (!selectedStartPages.has(task.pageNum)) {
+                task.wrapper.classList.add("selected");
+                selectedStartPages.add(task.pageNum);
+                updateInputBox();
+            }
+        }
+        // ========================================================
+        // ⭐ SMART AI DETECTION END ⭐
+        // ========================================================
       }));
     }
-
+    
   } catch (error) {
     console.error("Error generating thumbnails:", error);
     thumbnailGrid.innerHTML = "Error loading PDF previews.";
@@ -825,9 +939,9 @@ splitPdfBtn.addEventListener("click", async () => {
       compression: "STORE" // ⚡ This tells JSZip to skip the slow math
     });
     
-    // Grab the original file name and remove ".pdf"
+    // Name and download the final ZIP file
     const originalFileName = file.name.replace(/\.pdf$/i, "");
-    saveAs(blob, `${originalFileName}.zip`);
+    saveAs(blob, `${originalFileName}_Split.zip`);
 
     splitStatusText.textContent = `Done! Created ${pageGroups.length} files.`;
     splitProgressFill.style.width = "100%";
