@@ -153,34 +153,25 @@
 
 <!-- ================= AUTO ORIENT MODAL ================= -->
 <div id="autoOrientModal" class="modal hidden">
-  <div class="modal-content">
+  <div class="modal-content auto-orient-box">
 
     <button class="modal-close" id="closeAutoOrientModal">&times;</button>
 
     <h2 class="modal-title">Auto Orient PDF</h2>
 
-    <!-- Upload Section -->
     <p style="font-weight: bold; margin-bottom: 5px;">Upload</p>
-    <input
-      type="file"
-      id="autoOrientFileInput"
-      accept="application/pdf"
-    />
+    <input type="file" id="autoOrientFileInput" accept="application/pdf" />
 
-    <!-- PDF Preview Section -->
-    <p style="font-weight: bold; margin-top: 15px; margin-bottom: 5px;">PDF Preview</p>
     <div class="pdf-preview-container">
-      <iframe id="autoOrientPdfViewer" width="100%" height="400px" style="border: 1px solid #ccc;"></iframe>
+      <iframe id="autoOrientPdfViewer"></iframe>
     </div>
 
-    <!-- Loader -->
     <div id="autoOrientLoader" class="split-loader hidden">
       <div class="spinner"></div>
       <span>Analyzing & auto-orienting PDF...</span>
     </div>
 
-    <!-- Actions -->
-    <div style="margin-top: 20px;">
+    <div>
       <button class="button success" id="startAutoOrientBtn">
         Auto Orient PDF
       </button>
@@ -191,7 +182,7 @@
 
 
 
-<-- CHANGED: Removed accept attribute to fix upload issue -->
+<!-- -- CHANGED: Removed accept attribute to fix upload issue -- -->
 <input type="file" id="pdfFiles" webkitdirectory multiple style="display:none;">
 
 <div id="uploadConfirmModal" class="modal hidden">

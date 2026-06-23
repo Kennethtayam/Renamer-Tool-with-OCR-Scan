@@ -1048,3 +1048,35 @@
         #autoOrientModal.hidden {
             display: none !important;
         }
+
+        /* ==========================================
+        AUTO ORIENT FLEXIBLE RESIZE FIX
+        ========================================== */
+
+        /* 1. Force the modal to be large, flexible, and resizable */
+        .auto-orient-box {
+            width: 85vw !important;      /* Starts at 85% of your screen width */
+            height: 85vh !important;     /* Starts at 85% of your screen height */
+            max-width: 1200px !important;
+            display: flex !important;
+            flex-direction: column !important;
+            resize: both !important;     /* Adds the drag-to-resize handle */
+            overflow: hidden !important; /* Hides outer scrollbars so only the PDF scrolls */
+        }
+
+        /* 2. Force the container to absorb ALL empty vertical space */
+        .auto-orient-box .pdf-preview-container {
+            flex: 1 !important;          /* This is the magic line that stretches it */
+            width: 100%;
+            margin-top: 15px;
+            margin-bottom: 15px;
+        }
+
+        /* 3. Force the iframe to perfectly fill that stretched container */
+        .auto-orient-box iframe {
+            width: 100% !important;
+            height: 100% !important;
+            border: 2px solid #ccc;
+            border-radius: 6px;
+            background-color: #525659;   /* Dark background before PDF loads */
+        }
