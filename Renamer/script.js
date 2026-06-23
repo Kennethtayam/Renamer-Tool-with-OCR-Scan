@@ -479,11 +479,11 @@ pdfFilesInput.addEventListener('change', e => {
         </ul>
     `;
     
-    uploadModal.style.display = "block";
+    uploadModal.classList.remove("hidden");
 });
 
 confirmUpload.addEventListener('click', async () => {
-    uploadModal.style.display = "none";
+    uploadModal.classList.add("hidden");
     filesArray = [...tempFilesArray];
     
     const fileListDiv = document.getElementById('fileList');
@@ -495,14 +495,14 @@ confirmUpload.addEventListener('click', async () => {
 });
 
 cancelUpload.addEventListener('click', () => { 
-    uploadModal.style.display = "none"; 
+    uploadModal.classList.add("hidden");
     pdfFilesInput.value = "";
     tempFilesArray = [];
 });
 
 window.addEventListener('click', e => {
     if (e.target === uploadModal) {
-        uploadModal.style.display = "none";
+        uploadModal.classList.add("hidden");
         pdfFilesInput.value = "";
     }
 });
@@ -553,15 +553,15 @@ document.getElementById('deselectAllBtn').addEventListener('click', () => {
 const splitModal = document.getElementById("splitPdfModal");
 
 document.getElementById("openSplitModalBtn").addEventListener("click", () => {
-  splitModal.style.display = "block";
+  splitModal.classList.remove("hidden");
 });
 
 document.getElementById("closeSplitModal").addEventListener("click", () => {
-  splitModal.style.display = "none";
+  splitModal.classList.add("hidden");
 });
 
 window.addEventListener("click", e => {
-  if (e.target === splitModal) splitModal.style.display = "none";
+  if (e.target === splitModal) splitModal.classList.add("hidden");
 });
 
 // ================= PDF SPLITTER =================
@@ -1156,7 +1156,7 @@ document.getElementById('renameBtn').addEventListener('click', () => {
                 filesArray.splice(idx, 1);
                 renderFileList();
                 
-                modal.style.display = "none";
+                document.getElementById('renameModal').classList.add("hidden");
                 setTimeout(() => document.getElementById('renameBtn').click(), 100);
             }
         });
@@ -1168,7 +1168,7 @@ document.getElementById('renameBtn').addEventListener('click', () => {
         });
     });
 
-    modal.style.display = "block";
+    modal.classList.remove("hidden");
 });
 
 document.getElementById('cancelModal').addEventListener('click', () => {
@@ -1250,8 +1250,136 @@ document.addEventListener('keydown', (e) => {
 // Close modal on background click
 window.addEventListener('click', e => {
     const modal = document.getElementById('renameModal');
-    if (e.target === modal) modal.style.display = "none";
+    if (e.target === modal) document.getElementById('renameModal').classList.add("hidden");
 });
 
 // Initialize
 updateFileCounter();
+
+   // ==========================================
+// AUTO ORIENT LOGIC
+// ==========================================
+
+document.addEventListener('DOMContentLoaded', () => {
+
+    // --- DOM Elements ---
+    
+    // The main purple button on your dashboard that opens the modal
+    // IMPORTANT: Make sure the ID below matches your actual purple button's ID in your HTML!
+    const openModalBtn = document.getElementById('autoOrientBtn');
+    
+    // Modal Elements
+    const autoOrientModal = document.getElementById('autoOrientModal');
+    const closeAutoOrientModal = document.getElementById('closeAutoOrientModal');
+    
+    // Inside the Modal
+    const orientFileInput = document.getElementById('autoOrientFileInput');
+    const orientPdfViewer = document.getElementById('autoOrientPdfViewer');
+    const orientLoader = document.getElementById('autoOrientLoader');
+    const startOrientBtn = document.getElementById('startAutoOrientBtn'); 
+
+    let currentOrientFile = null;
+
+    // --- 1. Open / Close Modal Logic ---
+
+    // Open modal when purple button is clicked
+    if (openModalBtn) {
+        openModalBtn.addEventListener('click', () => {
+            autoOrientModal.classList.remove('hidden');
+        });
+    }
+
+    // Close modal when 'x' is clicked
+    if (closeAutoOrientModal) {
+        closeAutoOrientModal.addEventListener('click', () => {
+            autoOrientModal.classList.add('hidden');
+            // Optional: clear the viewer and input when closing
+            orientFileInput.value = '';
+            orientPdfViewer.src = '';
+            currentOrientFile = null;
+        });
+    }
+
+    // Close modal if user clicks outside the white box
+    window.addEventListener('click', (event) => {
+        if (event.target === autoOrientModal) {
+            autoOrientModal.classList.add('hidden');
+        }
+    });
+
+    // --- 2. File Upload & Preview ---
+
+    if (orientFileInput) {
+        orientFileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                currentOrientFile = file;
+                
+                // Create a temporary URL to preview the selected file
+                const fileURL = URL.createObjectURL(file);
+                orientPdfViewer.src = fileURL;
+            }
+        });
+    }
+
+    // --- 3. Process and Flip the PDF ---
+
+    if (startOrientBtn) {
+        startOrientBtn.addEventListener('click', async () => {
+            if (!currentOrientFile) {
+                alert('Please upload a PDF file first.');
+                return;
+            }
+
+            // Show the loader and disable the button
+            orientLoader.classList.remove('hidden');
+            startOrientBtn.disabled = true;
+            startOrientBtn.innerText = "Processing...";
+
+            try {
+                // Read the file into memory
+                const arrayBuffer = await currentOrientFile.arrayBuffer();
+                
+                // Load the PDF into pdf-lib
+                const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+                
+                // Get all pages and flip them 180 degrees
+                const pages = pdfDoc.getPages();
+                pages.forEach((page) => {
+                    const currentRotation = page.getRotation().angle;
+                    page.setRotation(PDFLib.degrees(currentRotation + 180));
+                });
+                
+                // Save the rotated PDF back to raw bytes
+                const pdfBytes = await pdfDoc.save();
+                
+                // Convert the bytes back into a PDF Blob
+                const orientedBlob = new Blob([pdfBytes], { type: 'application/pdf' });
+                
+                // Update the iframe to show the fixed document
+                const newPdfUrl = URL.createObjectURL(orientedBlob);
+                orientPdfViewer.src = newPdfUrl;
+
+                // Trigger automatic download
+                const downloadLink = document.createElement('a');
+                downloadLink.href = newPdfUrl;
+                downloadLink.download = `Oriented_${currentOrientFile.name}`;
+                downloadLink.click();
+
+                // Update current file so it can be flipped again if needed
+                currentOrientFile = new File([orientedBlob], currentOrientFile.name, { type: 'application/pdf' });
+
+                alert('Success! File oriented and downloaded.');
+
+            } catch (error) {
+                console.error('Error orienting PDF:', error);
+                alert('An error occurred while orienting the file. Check the console for details.');
+            } finally {
+                // Hide loader and reset button
+                orientLoader.classList.add('hidden');
+                startOrientBtn.disabled = false;
+                startOrientBtn.innerText = "Auto Orient PDF";
+            }
+        });
+    }
+});
