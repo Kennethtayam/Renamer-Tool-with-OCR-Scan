@@ -1267,6 +1267,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // The main purple button on your dashboard that opens the modal
     // IMPORTANT: Make sure the ID below matches your actual purple button's ID in your HTML!
     const openModalBtn = document.getElementById('autoOrientBtn');
+    const dropZone = document.getElementById('autoOrientDropZone');
+    const dropText = document.getElementById('autoOrientDropText');
     
     // Modal Elements
     const autoOrientModal = document.getElementById('autoOrientModal');
@@ -1343,11 +1345,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Load the PDF into pdf-lib
                 const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
                 
-                // Get all pages and flip them 180 degrees
+                // Grab the rotation degree from the dropdown
+                const rotationValue = parseInt(document.getElementById('orientDegree').value);
+
+                // Get all pages and apply the selected rotation
                 const pages = pdfDoc.getPages();
                 pages.forEach((page) => {
                     const currentRotation = page.getRotation().angle;
-                    page.setRotation(PDFLib.degrees(currentRotation + 180));
+                    page.setRotation(PDFLib.degrees(currentRotation + rotationValue));
                 });
                 
                 // Save the rotated PDF back to raw bytes

@@ -160,7 +160,15 @@
     <h2 class="modal-title">Auto Orient PDF</h2>
 
     <p style="font-weight: bold; margin-bottom: 5px;">Upload</p>
-    <input type="file" id="autoOrientFileInput" accept="application/pdf" />
+        
+        <div id="autoOrientDropZone" class="drag-drop-zone">
+          <svg class="upload-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11zM8 15.01l1.41 1.41L11 14.84V19h2v-4.16l1.59 1.59L16 15.01 12.01 11 8 15.01z"/>
+          </svg>
+          <span id="autoOrientDropText">Drag & drop your PDF here or <strong>click to browse</strong></span>
+          
+          <input type="file" id="autoOrientFileInput" accept="application/pdf" class="hidden-file-input" />
+        </div>
 
     <div class="pdf-preview-container">
       <iframe id="autoOrientPdfViewer"></iframe>
@@ -168,12 +176,18 @@
 
     <div id="autoOrientLoader" class="split-loader hidden">
       <div class="spinner"></div>
-      <span>Analyzing & auto-orienting PDF...</span>
+      <span>Rotating PDF...</span>
     </div>
 
-    <div>
+    <div style="display: flex; gap: 10px; align-items: center; margin-top: 10px;">
+      <select id="orientDegree" style="padding: 10px; border-radius: 5px; border: 1px solid #ccc; font-weight: bold;">
+        <option value="90">Rotate 90° Clockwise ↻</option>
+        <option value="270">Rotate 90° Counter-Clockwise ↺</option>
+        <option value="180">Flip 180° ↕</option>
+      </select>
+
       <button class="button success" id="startAutoOrientBtn">
-        Auto Orient PDF
+        Apply Rotation
       </button>
     </div>
 
