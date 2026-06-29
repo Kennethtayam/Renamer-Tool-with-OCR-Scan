@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>PDF Renamer</title>
+    <title>PDF TOOLS</title>
     
     <!-- Favicon -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🗃️</text></svg>" type="image/svg+xml">
@@ -24,7 +24,7 @@
 
 <body>
     
-<h1>PDF Renamer</h1>
+<h1>PDF TOOLS</h1>
 
 <div class="horizontal-form">
   <div class="form-group">
@@ -101,6 +101,12 @@
   </svg>
     Auto Orient File
   </button>
+  <button class="button" id="openMergeModalBtn" aria-label="Merge PDFs">
+    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" style="margin-right: 5px;">
+      <path d="M17 20.41L18.41 19 15 15.59 13.59 17 17 20.41zM7.5 8H11v5.59L5.59 19 7 20.41l6-6V8h3.5L12 3.5 7.5 8z"/>
+    </svg>
+    Bulk Merge PDFs
+  </button>
 </div>
 
   <!-- ================= ENHANCED PDF SPLITTER MODAL ================= -->
@@ -157,37 +163,73 @@
 
     <button class="modal-close" id="closeAutoOrientModal">&times;</button>
 
-    <h2 class="modal-title">Auto Orient PDF</h2>
+    <h2 class="modal-title">Bulk Visual Orient</h2>
 
-    <p style="font-weight: bold; margin-bottom: 5px;">Upload</p>
-        
-        <div id="autoOrientDropZone" class="drag-drop-zone">
-          <svg class="upload-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11zM8 15.01l1.41 1.41L11 14.84V19h2v-4.16l1.59 1.59L16 15.01 12.01 11 8 15.01z"/>
-          </svg>
-          <span id="autoOrientDropText">Drag & drop your PDF here or <strong>click to browse</strong></span>
-          
-          <input type="file" id="autoOrientFileInput" accept="application/pdf" class="hidden-file-input" />
+    <p style="font-weight: bold; margin-bottom: 5px;">Upload a Folder of PDFs</p>
+    
+    <div id="autoOrientDropZone" class="drag-drop-zone">
+      <svg class="upload-icon" viewBox="0 0 24 24" aria-hidden="true" style="width:40px; height:40px; fill:currentColor; margin-bottom:10px;">
+        <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11zM8 15.01l1.41 1.41L11 14.84V19h2v-4.16l1.59 1.59L16 15.01 12.01 11 8 15.01z"/>
+      </svg>
+      <div id="autoOrientDropText">Drag & drop PDFs here or <strong>click to browse folders</strong></div>
+      
+      <input type="file" id="autoOrientFileInput" accept="application/pdf" multiple webkitdirectory class="hidden-file-input" />
+    </div>
+
+    <div id="orientThumbnailContainer" class="hidden" style="margin-top: 10px; border-top: 1px dashed #ccc; padding-top: 15px; flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+      <p style="font-weight: bold; margin-bottom: 10px; color: #333;">Click the files you want to rotate:</p>
+      
+      <div id="orientThumbnailGrid" style="display: flex; flex-wrap: wrap; gap: 15px; overflow-y: auto; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #cbd5e1; justify-content: center; align-content: flex-start; flex: 1;">
         </div>
-
-    <div class="pdf-preview-container">
-      <iframe id="autoOrientPdfViewer"></iframe>
     </div>
 
-    <div id="autoOrientLoader" class="split-loader hidden">
+    <div id="autoOrientLoader" class="split-loader hidden" style="margin-top: 15px;">
       <div class="spinner"></div>
-      <span>Rotating PDF...</span>
+      <span id="autoOrientStatusText">Processing folder and zipping files...</span>
     </div>
 
-    <div style="display: flex; gap: 10px; align-items: center; margin-top: 10px;">
-      <select id="orientDegree" style="padding: 10px; border-radius: 5px; border: 1px solid #ccc; font-weight: bold;">
+    <div style="display: flex; gap: 10px; align-items: center; margin-top: 20px;">
+      <select id="orientDegree" style="padding: 12px; border-radius: 5px; border: 1px solid #ccc; font-weight: bold; flex: 1;">
         <option value="90">Rotate 90° Clockwise ↻</option>
         <option value="270">Rotate 90° Counter-Clockwise ↺</option>
         <option value="180">Flip 180° ↕</option>
       </select>
 
-      <button class="button success" id="startAutoOrientBtn">
-        Apply Rotation
+      <button class="button success" id="startAutoOrientBtn" style="flex: 1; padding: 12px;">
+        Apply & Download ZIP
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- -- Merging Tool -- -->
+<div id="mergeModal" class="modal hidden">
+  <div class="modal-content auto-orient-box">
+
+    <button class="modal-close" id="closeMergeModal">&times;</button>
+
+    <h2 class="modal-title">Bulk Folder Merger</h2>
+
+    <p style="font-weight: bold; margin-bottom: 5px;">Upload Main Folder (e.g., IPCR 2025)</p>
+    
+    <div id="mergeDropZone" class="drag-drop-zone">
+      <svg class="upload-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/>
+      </svg>
+      <div id="mergeDropText">Drag & drop your Main Folder here or <strong>click to browse</strong></div>
+      
+      <input type="file" id="mergeFileInput" accept="application/pdf" multiple webkitdirectory class="hidden-file-input" />
+    </div>
+
+    <div id="mergeLoader" class="split-loader hidden" style="margin-top: 15px;">
+      <div class="spinner"></div>
+      <span id="mergeStatusText">Scanning folders...</span>
+    </div>
+
+    <div style="margin-top: 20px;">
+      <button class="button success" id="startMergeBtn" style="width: 100%; padding: 12px; background-color: #28a745;">
+        Merge Subfolders & Download
       </button>
     </div>
 

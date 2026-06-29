@@ -985,85 +985,7 @@ function parsePageGroups(input, max) {
 
   return groups;
 }
-    // Page range parser (1-3,5)
-    // function parsePageRange(input, max) {
-    //   if (!input) return [];
-    //   const set = new Set();
-
-    //   input.split(",").forEach(part => {
-    //     if (part.includes("-")) {
-    //       let [s, e] = part.split("-").map(n => parseInt(n));
-    //       if (isNaN(s) || isNaN(e)) return;
-    //       s = Math.max(1, s);
-    //       e = Math.min(max, e);
-    //       for (let i = s; i <= e; i++) set.add(i - 1);
-    //     } else {
-    //       const p = parseInt(part);
-    //       if (!isNaN(p) && p >= 1 && p <= max) set.add(p - 1);
-    //     }
-    //   });
-
-    //   return [...set].sort((a, b) => a - b);
-    // }
-
-// /* ================= Auto Orient File Function ================= */
-
-// const autoOrientBtn = document.getElementById('autoOrientBtn');
-// const autoOrientModal = document.getElementById('autoOrientModal');
-// const closeAutoOrientModal = document.getElementById('closeAutoOrientModal');
-
-// const autoOrientInput = document.getElementById('autoOrientFileInput');
-// const autoOrientViewer = document.getElementById('autoOrientPdfViewer');
-// const autoOrientLoader = document.getElementById('autoOrientLoader');
-// const startAutoOrientBtn = document.getElementById('startAutoOrientBtn');
-
-// let autoOrientFile = null;
-
-// /* ================= OPEN MODAL ================= */
-// autoOrientBtn.addEventListener('click', () => {
-//   autoOrientModal.classList.remove('hidden');
-// });
-
-// /* ================= CLOSE MODAL ================= */
-// closeAutoOrientModal.addEventListener('click', () => {
-//   resetAutoOrientModal();
-// });
-
-// /* ================= FILE UPLOAD (1 PDF ONLY) ================= */
-// autoOrientInput.addEventListener('change', () => {
-//   const file = autoOrientInput.files[0];
-//   if (!file || file.type !== 'application/pdf') {
-//     alert('Please upload a valid PDF file.');
-//     return;
-//   }
-
-//   autoOrientFile = file;
-//   autoOrientViewer.src = URL.createObjectURL(file);
-// });
-
-// /* ================= START AUTO ORIENT ================= */
-// startAutoOrientBtn.addEventListener('click', async () => {
-//   if (!autoOrientFile) {
-//     alert('Please upload a PDF file first.');
-//     return;
-//   }
-
-//   autoOrientLoader.classList.remove('hidden');
-//   autoOrientModal.classList.add('processing');
-
-//   try {
-//     // ⏳ PLACEHOLDER (next step: real orientation logic)
-//     await new Promise(resolve => setTimeout(resolve, 2000));
-
-//     alert('Auto orientation complete! (logic ready)');
-//   } catch (err) {
-//     console.error(err);
-//     alert('Failed to auto-orient PDF.');
-//   } finally {
-//     autoOrientLoader.classList.add('hidden');
-//     autoOrientModal.classList.remove('processing');
-//   }
-// });
+    
 
 /* ================= RESET ================= */
 function resetAutoOrientModal() {
@@ -1256,134 +1178,353 @@ window.addEventListener('click', e => {
 // Initialize
 updateFileCounter();
 
-   // ==========================================
-// AUTO ORIENT LOGIC
+// ==========================================
+// VISUAL BULK FOLDER ORIENT LOGIC
 // ==========================================
 
 document.addEventListener('DOMContentLoaded', () => {
 
-    // --- DOM Elements ---
-    
-    // The main purple button on your dashboard that opens the modal
-    // IMPORTANT: Make sure the ID below matches your actual purple button's ID in your HTML!
-    const openModalBtn = document.getElementById('autoOrientBtn');
-    const dropZone = document.getElementById('autoOrientDropZone');
-    const dropText = document.getElementById('autoOrientDropText');
-    
-    // Modal Elements
+    const openModalBtn = document.getElementById('autoOrientBtn'); 
     const autoOrientModal = document.getElementById('autoOrientModal');
     const closeAutoOrientModal = document.getElementById('closeAutoOrientModal');
     
-    // Inside the Modal
     const orientFileInput = document.getElementById('autoOrientFileInput');
-    const orientPdfViewer = document.getElementById('autoOrientPdfViewer');
-    const orientLoader = document.getElementById('autoOrientLoader');
+    const orientThumbnailContainer = document.getElementById('orientThumbnailContainer');
+    const orientThumbnailGrid = document.getElementById('orientThumbnailGrid');
+    
     const startOrientBtn = document.getElementById('startAutoOrientBtn'); 
+    const orientDegreeSelect = document.getElementById('orientDegree');
+    
+    const orientLoader = document.getElementById('autoOrientLoader');
+    const orientStatusText = document.getElementById('autoOrientStatusText');
 
-    let currentOrientFile = null;
+    const dropZone = document.getElementById('autoOrientDropZone');
+    const dropText = document.getElementById('autoOrientDropText');
 
-    // --- 1. Open / Close Modal Logic ---
+    let currentOrientFiles = []; // Stores the uploaded files
+    let selectedOrientFiles = new Set(); // Stores the indexes of files you clicked
 
-    // Open modal when purple button is clicked
-    if (openModalBtn) {
-        openModalBtn.addEventListener('click', () => {
-            autoOrientModal.classList.remove('hidden');
+    // --- 1. Open / Close Modal ---
+    // --- 1.5 Drag and Drop Animations ---
+    if (dropZone) {
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault(); 
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                orientFileInput.files = e.dataTransfer.files; 
+                orientFileInput.dispatchEvent(new Event('change')); // Trigger preview
+            }
         });
     }
-
-    // Close modal when 'x' is clicked
+    if (openModalBtn) openModalBtn.addEventListener('click', () => autoOrientModal.classList.remove('hidden'));
+    
     if (closeAutoOrientModal) {
         closeAutoOrientModal.addEventListener('click', () => {
             autoOrientModal.classList.add('hidden');
-            // Optional: clear the viewer and input when closing
             orientFileInput.value = '';
-            orientPdfViewer.src = '';
-            currentOrientFile = null;
+            orientThumbnailGrid.innerHTML = '';
+            orientThumbnailContainer.classList.add('hidden');
+            currentOrientFiles = [];
+            selectedOrientFiles.clear();
         });
     }
 
-    // Close modal if user clicks outside the white box
-    window.addEventListener('click', (event) => {
-        if (event.target === autoOrientModal) {
-            autoOrientModal.classList.add('hidden');
-        }
-    });
-
-    // --- 2. File Upload & Preview ---
-
+    // --- 2. Generate Thumbnails for EACH FILE ---
     if (orientFileInput) {
-        orientFileInput.addEventListener('change', (event) => {
-            const file = event.target.files[0];
-            if (file) {
-                currentOrientFile = file;
-                
-                // Create a temporary URL to preview the selected file
-                const fileURL = URL.createObjectURL(file);
-                orientPdfViewer.src = fileURL;
+        orientFileInput.addEventListener('change', async (event) => {
+            // Filter to make sure we only grab PDFs from the folder
+            currentOrientFiles = Array.from(event.target.files).filter(f => f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
+            
+            if (currentOrientFiles.length === 0) return;
+
+            selectedOrientFiles.clear();
+            orientThumbnailGrid.innerHTML = `<p style="margin-top: 20px;">Loading previews for ${currentOrientFiles.length} files...</p>`;
+            orientThumbnailContainer.classList.remove('hidden');
+            orientThumbnailContainer.style.display = 'flex';
+
+            orientThumbnailGrid.innerHTML = ''; // Clear loading text
+
+            // Loop through each file to grab its first page
+            for (let i = 0; i < currentOrientFiles.length; i++) {
+                const file = currentOrientFiles[i];
+
+                try {
+                    // ⚡ SPEED UPGRADE 1: Stream the file instead of loading it entirely into RAM
+                    const fileUrl = URL.createObjectURL(file);
+                    const pdfjsDoc = await pdfjsLib.getDocument({ url: fileUrl }).promise;
+                    
+                    const page = await pdfjsDoc.getPage(1);
+                    const viewport = page.getViewport({ scale: 0.3 }); // Lower scale for faster drawing
+                    
+                    const wrapper = document.createElement("div");
+                    wrapper.className = "thumbnail-wrapper";
+                    wrapper.title = file.name; 
+                    
+                    const canvas = document.createElement("canvas");
+                    canvas.width = viewport.width;
+                    canvas.height = viewport.height;
+                    const ctx = canvas.getContext("2d");
+                    await page.render({ canvasContext: ctx, viewport }).promise;
+
+                    // ⚡ SPEED UPGRADE 2: Instantly clear the streaming memory to prevent crashing
+                    URL.revokeObjectURL(fileUrl);
+
+                    const label = document.createElement("p");
+                    label.textContent = file.name.length > 15 ? file.name.substring(0, 15) + "..." : file.name;
+                    label.style.fontSize = "10px";
+
+                    wrapper.appendChild(canvas);
+                    wrapper.appendChild(label);
+
+                    wrapper.addEventListener("click", () => {
+                        wrapper.classList.toggle("selected");
+                        if (selectedOrientFiles.has(i)) {
+                            selectedOrientFiles.delete(i);
+                        } else {
+                            selectedOrientFiles.add(i);
+                        }
+                    });
+
+                    orientThumbnailGrid.appendChild(wrapper);
+                } catch (error) {
+                    console.error(`Error loading thumbnail for ${file.name}:`, error);
+                }
             }
         });
     }
 
-    // --- 3. Process and Flip the PDF ---
-
+    // --- 3. Process the Rotation and ZIP ---
     if (startOrientBtn) {
         startOrientBtn.addEventListener('click', async () => {
-            if (!currentOrientFile) {
-                alert('Please upload a PDF file first.');
+            if (currentOrientFiles.length === 0) {
+                alert('Please upload a folder of PDFs first.');
+                return;
+            }
+            if (selectedOrientFiles.size === 0) {
+                alert('Please click on at least one file to rotate it.');
                 return;
             }
 
-            // Show the loader and disable the button
             orientLoader.classList.remove('hidden');
             startOrientBtn.disabled = true;
-            startOrientBtn.innerText = "Processing...";
+            orientStatusText.textContent = "Processing and creating ZIP...";
+            
+            const rotationValue = parseInt(orientDegreeSelect.value);
+            const zip = new JSZip();
 
             try {
-                // Read the file into memory
-                const arrayBuffer = await currentOrientFile.arrayBuffer();
-                
-                // Load the PDF into pdf-lib
-                const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
-                
-                // Grab the rotation degree from the dropdown
-                const rotationValue = parseInt(document.getElementById('orientDegree').value);
+                for (let i = 0; i < currentOrientFiles.length; i++) {
+                    const file = currentOrientFiles[i];
+                    const arrayBuffer = await file.arrayBuffer();
 
-                // Get all pages and apply the selected rotation
-                const pages = pdfDoc.getPages();
-                pages.forEach((page) => {
-                    const currentRotation = page.getRotation().angle;
-                    page.setRotation(PDFLib.degrees(currentRotation + rotationValue));
-                });
-                
-                // Save the rotated PDF back to raw bytes
-                const pdfBytes = await pdfDoc.save();
-                
-                // Convert the bytes back into a PDF Blob
-                const orientedBlob = new Blob([pdfBytes], { type: 'application/pdf' });
-                
-                // Update the iframe to show the fixed document
-                const newPdfUrl = URL.createObjectURL(orientedBlob);
-                orientPdfViewer.src = newPdfUrl;
+                    // If you selected this file, rotate every page inside it!
+                    if (selectedOrientFiles.has(i)) {
+                        const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+                        const pages = pdfDoc.getPages();
+                        
+                        pages.forEach((p) => {
+                            const currentRotation = p.getRotation().angle || 0;
+                            p.setRotation(PDFLib.degrees((currentRotation + rotationValue) % 360));
+                        });
 
-                // Trigger automatic download
+                        const pdfBytes = await pdfDoc.save();
+                        zip.file(file.name, pdfBytes); // Add fixed file to ZIP
+                    } else {
+                        // If you didn't click it, just add the original untouched file to the ZIP
+                        zip.file(file.name, arrayBuffer);
+                    }
+                }
+
+                // Generate and download the ZIP file
+                const zipBlob = await zip.generateAsync({ type: "blob", compression: "STORE" });
                 const downloadLink = document.createElement('a');
-                downloadLink.href = newPdfUrl;
-                downloadLink.download = `Oriented_${currentOrientFile.name}`;
+                downloadLink.href = URL.createObjectURL(zipBlob);
+                
+                // Name the folder dynamically based on what they uploaded
+                const folderName = currentOrientFiles[0].webkitRelativePath ? currentOrientFiles[0].webkitRelativePath.split('/')[0] : "Oriented_PDFs";
+                downloadLink.download = `${folderName}_Fixed.zip`;
                 downloadLink.click();
 
-                // Update current file so it can be flipped again if needed
-                currentOrientFile = new File([orientedBlob], currentOrientFile.name, { type: 'application/pdf' });
-
-                alert('Success! File oriented and downloaded.');
+                alert(`Success! Rotated ${selectedOrientFiles.size} files and packaged the folder.`);
 
             } catch (error) {
-                console.error('Error orienting PDF:', error);
-                alert('An error occurred while orienting the file. Check the console for details.');
+                console.error('Error orienting folder:', error);
+                alert('An error occurred while packing the ZIP. Check the console.');
             } finally {
-                // Hide loader and reset button
                 orientLoader.classList.add('hidden');
                 startOrientBtn.disabled = false;
-                startOrientBtn.innerText = "Auto Orient PDF";
+            }
+        });
+    }
+});
+
+
+// ==========================================
+// BULK FOLDER MERGER LOGIC
+// ==========================================
+
+document.addEventListener('DOMContentLoaded', () => {
+
+    const openMergeBtn = document.getElementById('openMergeModalBtn');
+    const mergeModal = document.getElementById('mergeModal');
+    const closeMergeModal = document.getElementById('closeMergeModal');
+    
+    const mergeFileInput = document.getElementById('mergeFileInput');
+    const startMergeBtn = document.getElementById('startMergeBtn');
+    
+    const dropZone = document.getElementById('mergeDropZone');
+    const dropText = document.getElementById('mergeDropText');
+    const loader = document.getElementById('mergeLoader');
+    const statusText = document.getElementById('mergeStatusText');
+
+    let groupedFiles = {}; // Will hold files sorted by subfolder
+    let mainFolderName = "Merged_Folders";
+
+    // --- 1. Open / Close Modal ---
+    if (openMergeBtn) openMergeBtn.addEventListener('click', () => mergeModal.classList.remove('hidden'));
+    
+    if (closeMergeModal) {
+        closeMergeModal.addEventListener('click', () => {
+            mergeModal.classList.add('hidden');
+            mergeFileInput.value = '';
+            groupedFiles = {};
+            dropText.innerHTML = "Drag & drop your Main Folder here or <strong>click to browse</strong>";
+        });
+    }
+
+    // --- 2. Drag & Drop Visuals ---
+    if (dropZone) {
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                mergeFileInput.files = e.dataTransfer.files;
+                mergeFileInput.dispatchEvent(new Event('change'));
+            }
+        });
+    }
+
+    // --- 3. Group Files by Subfolder ---
+    if (mergeFileInput) {
+        mergeFileInput.addEventListener('change', (event) => {
+            groupedFiles = {};
+            const allFiles = Array.from(event.target.files).filter(f => f.name.toLowerCase().endsWith('.pdf'));
+            
+            if (allFiles.length === 0) {
+                dropText.innerHTML = "No PDFs found. Please upload a valid folder.";
+                return;
+            }
+
+            // Get the name of the root folder (e.g., "IPCR 2025")
+            mainFolderName = allFiles[0].webkitRelativePath.split('/')[0] || "Merged_Folders";
+
+            // Group PDFs by their subfolder name
+            allFiles.forEach(file => {
+                const pathParts = file.webkitRelativePath.split('/');
+                
+                // If the file is inside a subfolder: MainFolder -> SubFolder -> file.pdf
+                if (pathParts.length >= 3) {
+                    const subFolderName = pathParts[1]; 
+                    if (!groupedFiles[subFolderName]) groupedFiles[subFolderName] = [];
+                    groupedFiles[subFolderName].push(file);
+                } 
+                // If the file is loose in the main folder
+                else {
+                    if (!groupedFiles["Loose_Files"]) groupedFiles["Loose_Files"] = [];
+                    groupedFiles["Loose_Files"].push(file);
+                }
+            });
+
+            const totalSubfolders = Object.keys(groupedFiles).length;
+            dropText.innerHTML = `<strong>Ready!</strong> Found ${allFiles.length} PDFs across ${totalSubfolders} subfolders.`;
+        });
+    }
+
+    // --- 4. Merge & ZIP Logic ---
+    if (startMergeBtn) {
+        startMergeBtn.addEventListener('click', async () => {
+            const subfolderNames = Object.keys(groupedFiles);
+            if (subfolderNames.length === 0) {
+                alert("Please upload a main folder containing subfolders with PDFs.");
+                return;
+            }
+
+            loader.classList.remove('hidden');
+            startMergeBtn.disabled = true;
+            const zip = new JSZip();
+            const mainZipFolder = zip.folder(`${mainFolderName}_Merged`);
+
+            try {
+                // Loop through each subfolder
+                for (let i = 0; i < subfolderNames.length; i++) {
+                    const subFolder = subfolderNames[i];
+                    const filesToMerge = groupedFiles[subFolder];
+                    
+                    // Create a blank PDF document
+                    const mergedPdf = await PDFLib.PDFDocument.create();
+
+                    // Loop through all PDFs in this subfolder
+                    for (let j = 0; j < filesToMerge.length; j++) {
+                        const file = filesToMerge[j];
+                        
+                        // ⚡ UPDATE 1: Micro-progress updates so you know it isn't frozen!
+                        statusText.textContent = `Merging folder ${i + 1} of ${subfolderNames.length}: ${subFolder} (File ${j + 1} of ${filesToMerge.length})...`;
+                        
+                        const arrayBuffer = await file.arrayBuffer();
+                        const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+                        const copiedPages = await mergedPdf.copyPages(pdfDoc, pdfDoc.getPageIndices());
+                        copiedPages.forEach(page => mergedPdf.addPage(page));
+                        
+                        // ⚡ UPDATE 2: Memory cleanup! 
+                        // We don't have explicit delete commands in JS, but letting the loop end naturally 
+                        // allows the browser's Garbage Collector to delete the arrayBuffer from RAM.
+                    }
+
+                    statusText.textContent = `Saving merged ${subFolder} to memory...`;
+                    
+                    // Save the merged PDF and add it to the ZIP under its subfolder name!
+                    const mergedBytes = await mergedPdf.save();
+                    mainZipFolder.folder(subFolder).file(`Merged_${subFolder}.pdf`, mergedBytes);
+                }
+
+                statusText.textContent = "Preparing final ZIP... 0%";
+                
+                // ⚡ UPDATE 3: Live ZIP Progress Tracker!
+                const zipBlob = await zip.generateAsync(
+                    { type: "blob", compression: "STORE" },
+                    function updateCallback(metadata) {
+                        // This updates the text with the exact percentage (e.g., "Creating ZIP file... 45.2%")
+                        statusText.textContent = `Creating ZIP file... ${metadata.percent.toFixed(1)}%`;
+                    }
+                );
+                
+                // Update the text so you know it finished
+                statusText.textContent = "✅ Done! Downloading ZIP...";
+                
+                saveAs(zipBlob, `${mainFolderName}_Merged.zip`);
+
+                // Instantly turn off the loader and re-enable the button
+                loader.classList.add('hidden');
+                startMergeBtn.disabled = false;
+
+            } catch (error) { 
+                console.error("Error occurred while merging PDFs:", error);
+                statusText.textContent = "An error occurred while merging PDFs.";
+            } finally {
+                // Ensure the loading indicator is hidden
+                splitLoader.classList.add("hidden");
             }
         });
     }

@@ -1123,3 +1123,14 @@
             opacity: 0;
             cursor: pointer;
         }
+
+
+
+        #openMergeModalBtn {
+        background: #0dcaf0; /* A crisp, modern cyan/teal */
+        color: white;
+    }
+    
+    #openMergeModalBtn:hover {
+        background: #0bacce; /* Slightly darker on hover */
+    }
