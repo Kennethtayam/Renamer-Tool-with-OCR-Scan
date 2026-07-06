@@ -1479,17 +1479,21 @@ document.addEventListener('DOMContentLoaded', () => {
                     for (let j = 0; j < filesToMerge.length; j++) {
                         const file = filesToMerge[j];
                         
-                        // ⚡ UPDATE 1: Micro-progress updates so you know it isn't frozen!
                         statusText.textContent = `Merging folder ${i + 1} of ${subfolderNames.length}: ${subFolder} (File ${j + 1} of ${filesToMerge.length})...`;
                         
-                        const arrayBuffer = await file.arrayBuffer();
-                        const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
-                        const copiedPages = await mergedPdf.copyPages(pdfDoc, pdfDoc.getPageIndices());
-                        copiedPages.forEach(page => mergedPdf.addPage(page));
-                        
-                        // ⚡ UPDATE 2: Memory cleanup! 
-                        // We don't have explicit delete commands in JS, but letting the loop end naturally 
-                        // allows the browser's Garbage Collector to delete the arrayBuffer from RAM.
+                        try {
+                            const arrayBuffer = await file.arrayBuffer();
+                            
+                            // ⚡ FIX 1: bypass strict encryptions or form locks on government/HR PDFs
+                            const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
+                            
+                            const copiedPages = await mergedPdf.copyPages(pdfDoc, pdfDoc.getPageIndices());
+                            copiedPages.forEach(page => mergedPdf.addPage(page));
+                            
+                        } catch (fileErr) {
+                            // ⚡ FIX 2: If one file is corrupted/locked, skip it instead of crashing the whole batch!
+                            console.warn(`⚠ Skipped unreadable file: ${file.name}`, fileErr);
+                        }
                     }
 
                     statusText.textContent = `Saving merged ${subFolder} to memory...`;
@@ -1501,30 +1505,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 statusText.textContent = "Preparing final ZIP... 0%";
                 
-                // ⚡ UPDATE 3: Live ZIP Progress Tracker!
+                // Live ZIP Progress Tracker
                 const zipBlob = await zip.generateAsync(
                     { type: "blob", compression: "STORE" },
                     function updateCallback(metadata) {
-                        // This updates the text with the exact percentage (e.g., "Creating ZIP file... 45.2%")
                         statusText.textContent = `Creating ZIP file... ${metadata.percent.toFixed(1)}%`;
                     }
                 );
                 
-                // Update the text so you know it finished
                 statusText.textContent = "✅ Done! Downloading ZIP...";
-                
                 saveAs(zipBlob, `${mainFolderName}_Merged.zip`);
 
                 // Instantly turn off the loader and re-enable the button
                 loader.classList.add('hidden');
                 startMergeBtn.disabled = false;
 
-            } catch (error) { 
-                console.error("Error occurred while merging PDFs:", error);
-                statusText.textContent = "An error occurred while merging PDFs.";
-            } finally {
-                // Ensure the loading indicator is hidden
-                splitLoader.classList.add("hidden");
+            } catch (error) {
+                console.error("Error during merge:", error);
+                statusText.textContent = "❌ An error occurred while merging PDFs.";
+                alert("An error occurred while merging. Press F12 and check the Console for details.");
+                
+                loader.classList.add('hidden');
+                startMergeBtn.disabled = false;
             }
         });
     }
